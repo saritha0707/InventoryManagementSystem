@@ -1,4 +1,4 @@
-package com.example.sprintBootPOC;
+package com.OrderManagementSystem;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

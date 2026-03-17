@@ -1,4 +1,4 @@
-package com.example.sprintBootPOC.entity;
+package com.OrderManagementSystem.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -10,7 +10,7 @@ import lombok.*;
 @EqualsAndHashCode
 @Data
 
-public class User {
+public class OrderDetails {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

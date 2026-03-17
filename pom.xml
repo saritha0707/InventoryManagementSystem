@@ -9,7 +9,7 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.example</groupId>
-	<artifactId>sprintBootPOC</artifactId>
+	<artifactId>OrderManagementSystem</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>sprintBootPOC</name>
 	<description>Demo project for Spring Boot</description>
