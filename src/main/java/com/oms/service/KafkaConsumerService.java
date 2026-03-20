@@ -1,6 +1,6 @@
 package com.oms.service;
 
-import com.oms.entity.Order;
+import com.oms.entity.Orders;
 import com.oms.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -10,7 +10,7 @@ public class KafkaConsumerService {
     private OrderRepository orderRepository;
 
     @KafkaListener(topics = "order-events", groupId = "order-group")
-    public void consume(Order order) {
+    public void consume(Orders order) {
 
         System.out.println("Received order: " + order.getOrderId());
 

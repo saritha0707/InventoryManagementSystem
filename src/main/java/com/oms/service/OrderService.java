@@ -1,6 +1,6 @@
 package com.oms.service;
 
-import com.oms.entity.Order;
+import com.oms.entity.Orders;
 import com.oms.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,11 +16,11 @@ public class OrderService {
     @Autowired
     private KafkaProducerService kafkaProducerService;
 
-    public Order placeOrder(Order order) {
+    public Orders placeOrder(Orders order) {
 
         // 1. Save order in DB
         order.setStatus("CREATED");
-        Order savedOrder = orderRepository.save(order);
+        Orders savedOrder = orderRepository.save(order);
 
         // 2. Send event to Kafka
         kafkaProducerService.sendOrderEvent(savedOrder);
@@ -30,7 +30,7 @@ public class OrderService {
 
 
     // ✅ ADD THIS METHOD
-    public List<Order> getAllOrders() {
+    public List<Orders> getAllOrders() {
         return orderRepository.findAll();
     }
 }

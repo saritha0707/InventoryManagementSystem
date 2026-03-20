@@ -1,6 +1,20 @@
 package com.oms.repository;
 
-import com.oms.entity.Order;
+import com.oms.entity.Customer;
+import com.oms.entity.Orders;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface OrderRepository extends JpaRepository<Order, Long> {}
+import java.util.List;
+
+public interface OrderRepository extends JpaRepository<Orders, Long> {
+
+    List<Orders> findByCustomer(Customer customerId);
+    //Alternative to above method is
+    //List<Orders> findByCustomer_CustomerId(Long customerId);
+
+    List<Orders> findByStatus(String status);
+
+    List<Orders> findByGuestEmail(String guestEmail);
+}
+
+

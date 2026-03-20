@@ -1,7 +1,7 @@
 package com.oms.controller;
 
 
-import com.oms.entity.Order;
+import com.oms.entity.Orders;
 import com.oms.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -16,12 +16,12 @@ public class OrderController {
     private OrderService orderService;
 
     @PostMapping
-    public Order placeOrder(@RequestBody Order order) {
+    public Orders placeOrder(@RequestBody Orders order) {
         return orderService.placeOrder(order);
     }
 
     @GetMapping
-    public List<Order> getAllOrders() {
+    public List<Orders> getAllOrders() {
         return orderService.getAllOrders();
     }
 }
