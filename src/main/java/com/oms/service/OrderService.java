@@ -1,7 +1,7 @@
-package com.example.OMS.service;
+package com.oms.service;
 
-import com.example.OMS.entity.Order;
-import com.example.OMS.repository.OrderRepository;
+import com.oms.entity.Order;
+import com.oms.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

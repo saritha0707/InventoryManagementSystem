@@ -1,8 +1,8 @@
-package com.example.OMS.controller;
+package com.oms.controller;
 
 
-import com.example.OMS.entity.Order;
-import com.example.OMS.service.OrderService;
+import com.oms.entity.Order;
+import com.oms.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 

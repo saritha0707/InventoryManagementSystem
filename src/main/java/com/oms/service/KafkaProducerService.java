@@ -1,6 +1,6 @@
-package com.example.OMS.service;
+package com.oms.service;
 
-import com.example.OMS.entity.Order;
+import com.oms.entity.Order;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -14,6 +14,6 @@ public class KafkaProducerService {
 
     public void sendOrderEvent(Order order) {
         kafkaTemplate.send(TOPIC, order);
-        System.out.println("Order event sent: " + order.getId());
+        System.out.println("Order event sent: " + order.getOrderId());
     }
 }
