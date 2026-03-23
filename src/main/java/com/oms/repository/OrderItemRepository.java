@@ -7,13 +7,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 
-public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
+public interface OrderItemRepository extends JpaRepository<OrderItem, Integer> {
 
     //fetch all items for a given order
-    List<OrderItem> findByOrder_OrderId(Long orderId);
+    List<OrderItem> findByOrder_OrderId(int orderId);
 
     //fetch all items for a given product
-    List<OrderItem> findByProduct_ProductId(Long productId);
+    List<OrderItem> findByProduct_ProductId(int productId);
 
     List<OrderItem> findByOrder(Orders order);
 

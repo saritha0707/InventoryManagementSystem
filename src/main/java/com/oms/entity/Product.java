@@ -20,9 +20,10 @@ public class Product {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long productId;
+    private int productId;
 
     private String productName;
+    private String productDescription;
     private BigDecimal price;
     private String category;
     private LocalDateTime createdAt = LocalDateTime.now();

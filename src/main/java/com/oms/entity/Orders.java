@@ -16,7 +16,7 @@ import java.util.List;
 public class Orders {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long orderId;
+    private int orderId;
 
     private LocalDateTime orderDate = LocalDateTime.now();
     private String status; // CREATED, PAID, FAILED
