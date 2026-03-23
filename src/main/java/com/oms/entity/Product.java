@@ -1,5 +1,7 @@
 package com.oms.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -29,9 +31,11 @@ public class Product {
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @OneToMany(mappedBy = "product")
+    @JsonManagedReference
     private List<OrderItem> orderItems;
 
     @OneToMany(mappedBy = "product")
+    @JsonManagedReference
     private List<Inventory> inventories;
 
 }

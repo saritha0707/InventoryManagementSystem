@@ -1,5 +1,6 @@
 package com.oms.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -26,9 +27,11 @@ public class Inventory {
 
     @ManyToOne
     @JoinColumn(name = "product_id")
+    @JsonBackReference
     private Product product;
 
     @ManyToOne
     @JoinColumn(name = "warehouse_id")
+    @JsonBackReference
     private Warehouse warehouse;
 }

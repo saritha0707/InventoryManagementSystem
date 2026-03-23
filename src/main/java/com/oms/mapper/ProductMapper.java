@@ -24,5 +24,4 @@ public class ProductMapper {
                 .category(product.getCategory())
                 .build();
     }
-
 }

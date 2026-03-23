@@ -1,5 +1,7 @@
 package com.oms.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -23,5 +25,6 @@ public class Warehouse {
     private String location;
 
     @OneToMany(mappedBy = "warehouse")
+    @JsonManagedReference
     private List<Inventory> inventories;
 }
