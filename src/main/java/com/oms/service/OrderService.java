@@ -24,16 +24,23 @@ public class OrderService {
     @Autowired
     private ProductRepository productRepository;
 
+    @Autowired
+    private KafkaProducerService producerService;
     // Create Order (Multi Product)
     public OrderResponseDTO createOrder(OrderRequestDTO dto) {
 
         log.info("Creating order with {} items", dto.getItems().size());
 
         Orders order = new Orders();
+
         order.setStatus(String.valueOf(OrderStatus.CREATED));
+        //send message to kafka topic
+        producerService.sendOrderItemDetails(dto);
+
 
         // Convert DTO → OrderItems
         List<OrderItem> orderItems = dto.getItems().stream().map(itemDTO -> {
+
 
             Product product = productRepository.findById(itemDTO.getProductId())
                     .orElseThrow(() ->
@@ -77,7 +84,7 @@ public class OrderService {
     }
 
     //  Get Order By ID
-    public OrderResponseDTO getOrderById(Long id) {
+    public OrderResponseDTO getOrderById(int id) {
 
         Orders order = orderRepository.findById(Math.toIntExact(id))
                 .orElseThrow(() ->
@@ -105,7 +112,7 @@ public class OrderService {
 
         OrderResponseDTO dto = new OrderResponseDTO();
 
-        dto.setId((long) order.getOrderId());
+        dto.setId((int) order.getOrderId());
         dto.setStatus(order.getStatus());
         dto.setTotalAmount(order.getTotalAmount());
 

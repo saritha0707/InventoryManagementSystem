@@ -9,12 +9,12 @@ import java.time.LocalDateTime;
 @Builder
 public class InventoryResponse {
 
-    private Long inventoryId;
+    private int inventoryId;
 
-    private Long productId;
+    private int productId;
     private String productName;
 
-    private Long warehouseId;
+    private int warehouseId;
     private String warehouseName;
 
     private int quantity;

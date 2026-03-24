@@ -20,15 +20,15 @@ public class InventoryController {
 
     // ✅ Service 1: Get product availability (from Product + Warehouse + Inventory)
     @GetMapping("/product/{productId}")
-    public List<InventoryResponse> getProductAvailability(@PathVariable Long productId) {
+    public List<InventoryResponse> getProductAvailability(@PathVariable int productId) {
         return inventoryService.getProductAvailability(productId);
     }
 
     // ✅ Service 2: Reduce inventory after order
     @PostMapping("/reduce")
     @ResponseStatus(HttpStatus.OK)
-    public String reduceInventory(@RequestParam Long productId,
-                                  @RequestParam Long warehouseId,
+    public String reduceInventory(@RequestParam int productId,
+                                  @RequestParam int warehouseId,
                                   @RequestParam int quantity) {
 
         inventoryService.reduceInventory(productId, warehouseId, quantity);

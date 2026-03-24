@@ -60,7 +60,7 @@ public class InventoryService {
     }
 
     // ✅ 2. Get Product Availability
-    public List<InventoryResponse> getProductAvailability(Long productId) {
+    public List<InventoryResponse> getProductAvailability(int productId) {
         List<Inventory> inventories = inventoryRepository.findByProduct_ProductId(productId);
         return inventories.stream()
                 .map(this::mapToResponse)
@@ -69,7 +69,7 @@ public class InventoryService {
 
     // ✅ 3. Reduce Inventory (after order)
     @Transactional
-    public void reduceInventory(Long productId, Long warehouseId, int quantity) {
+    public void reduceInventory(int productId, int warehouseId, int quantity) {
 
         Inventory inventory = inventoryRepository
                 .findByProduct_ProductIdAndWarehouse_WarehouseId(Math.toIntExact(productId), Math.toIntExact(warehouseId))
@@ -92,10 +92,10 @@ public class InventoryService {
     // ✅ Mapper Method (Entity → DTO)
     private InventoryResponse mapToResponse(Inventory inventory) {
         return InventoryResponse.builder()
-                .inventoryId((long) inventory.getInventoryId())
-                .productId((long) inventory.getProduct().getProductId())
+                .inventoryId((int) inventory.getInventoryId())
+                .productId((int) inventory.getProduct().getProductId())
                 .productName(inventory.getProduct().getProductName())
-                .warehouseId((long) inventory.getWarehouse().getWarehouseId())
+                .warehouseId((int) inventory.getWarehouse().getWarehouseId())
                 .warehouseName(inventory.getWarehouse().getWarehouseName())
                 .quantity(inventory.getQuantity())
                 .lastUpdated(inventory.getLastUpdated())

@@ -26,10 +26,10 @@ public class InventoryMapper {
     public static InventoryResponse toResponse(Inventory inventory) {
 
         return InventoryResponse.builder()
-                .inventoryId((long) inventory.getInventoryId())
-                .productId((long) inventory.getProduct().getProductId())
+                .inventoryId((int) inventory.getInventoryId())
+                .productId((int) inventory.getProduct().getProductId())
                 .productName(inventory.getProduct().getProductName())
-                .warehouseId((long) inventory.getWarehouse().getWarehouseId())
+                .warehouseId((int) inventory.getWarehouse().getWarehouseId())
                 .warehouseName(inventory.getWarehouse().getWarehouseName())
                 .quantity(inventory.getQuantity())
                 .lastUpdated(inventory.getLastUpdated())
