@@ -1,8 +1,9 @@
 package com.oms.controller;
 
-
-import com.oms.entity.Orders;
-import com.oms.service.OrderService;
+import com.oms.dto.OrderRequestDTO;
+import com.oms.dto.OrderResponseDTO;
+import com.oms.service.*;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,12 +17,22 @@ public class OrderController {
     private OrderService orderService;
 
     @PostMapping
-    public Orders placeOrder(@RequestBody Orders order) {
-        return orderService.placeOrder(order);
+    public OrderResponseDTO createOrder(@Valid @RequestBody OrderRequestDTO dto) {
+        return orderService.createOrder(dto);
     }
 
     @GetMapping
-    public List<Orders> getAllOrders() {
+    public List<OrderResponseDTO> getAllOrders() {
         return orderService.getAllOrders();
+    }
+
+    @GetMapping("/{id}")
+    public OrderResponseDTO getOrderById(@PathVariable Long id) {
+        return orderService.getOrderById(id);
+    }
+
+    @PutMapping("/{id}/cancel")
+    public OrderResponseDTO cancelOrder(@PathVariable int id) {
+        return orderService.cancelOrder(id);
     }
 }
