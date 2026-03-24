@@ -18,11 +18,4 @@ public class OrderItemRequestDTO {
     @NotBlank (message = "Warehouse name is required")
     private String warehousename;
 
-    private int customerId;
-
-    private String guestName;
-
-    private String guestEmail;
-
-    private String guestPhone;
 }

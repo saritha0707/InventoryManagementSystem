@@ -5,6 +5,7 @@ import com.oms.entity.*;
 import com.oms.exception.InvalidOrderStateException;
 import com.oms.exception.ResourceNotFoundException;
 import com.oms.mapper.OrderMapper;
+import com.oms.repository.CustomerRepository;
 import com.oms.repository.OrderRepository;
 import com.oms.repository.ProductRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,9 @@ public class OrderService {
     @Autowired
     private OrderMapper ordermapper;
 
+    @Autowired
+    CustomerRepository customerRepository;
+
     // Create Order (Multi Product)
     public OrderResponseDTO createOrder(OrderRequestDTO dto) {
 
@@ -39,14 +43,13 @@ public class OrderService {
         Orders order = new Orders();
 
         order.setStatus(String.valueOf(OrderStatus.CREATED));
+
         //send message to kafka topic
         producerService.sendOrderItemDetails(dto);
 
-
+        //Product Availability
         // Convert DTO → OrderItems
         List<OrderItem> orderItems = dto.getItems().stream().map(itemDTO -> {
-
-
             Product product = productRepository.findById(itemDTO.getProductId())
                     .orElseThrow(() ->
                             new ResourceNotFoundException("Product not found with id: " + itemDTO.getProductId())
@@ -61,6 +64,7 @@ public class OrderService {
 
         }).collect(Collectors.toList());
 
+        //set items to order
         order.setOrderItems(orderItems);
 
         // Calculate total amount
@@ -70,6 +74,17 @@ public class OrderService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         order.setTotalAmount(totalAmount);
+        if(dto.getCustomerId() != 0)
+        {
+            Customer customer = customerRepository.findById(dto.getCustomerId())
+                    .orElseThrow(() -> new RuntimeException("Customer not found"));
+            order.setCustomer(customer);
+        }else {
+
+            order.setGuestName(dto.getGuestName());
+            order.setGuestEmail(dto.getGuestEmail());
+            order.setGuestPhone(dto.getGuestPhone());
+        }
 
         //  Save Order (cascade saves items)
         Orders savedOrder = orderRepository.save(order);

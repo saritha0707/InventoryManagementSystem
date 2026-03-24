@@ -10,4 +10,12 @@ public class OrderRequestDTO {
 
     @NotEmpty(message = "Order must contain at least one item")
     private List<OrderItemRequestDTO> items;
+
+    private int customerId;
+
+    private String guestName;
+
+    private String guestEmail;
+
+    private String guestPhone;
 }
