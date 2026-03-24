@@ -9,7 +9,9 @@ import java.util.List;
 public class OrderResponseDTO {
 
     private int id;
+    private String customerName;
     private String status;
     private BigDecimal totalAmount;
+
     private List<OrderItemResponseDTO> items;
 }

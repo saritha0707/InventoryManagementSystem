@@ -4,6 +4,7 @@ import com.oms.dto.*;
 import com.oms.entity.*;
 import com.oms.exception.InvalidOrderStateException;
 import com.oms.exception.ResourceNotFoundException;
+import com.oms.mapper.OrderMapper;
 import com.oms.repository.OrderRepository;
 import com.oms.repository.ProductRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +14,8 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
+
+
 
 @Service
 @Slf4j
@@ -26,6 +29,9 @@ public class OrderService {
 
     @Autowired
     private KafkaProducerService producerService;
+
+    @Autowired
+    private OrderMapper ordermapper;
     // Create Order (Multi Product)
     public OrderResponseDTO createOrder(OrderRequestDTO dto) {
 
@@ -71,7 +77,7 @@ public class OrderService {
 
         log.info("Order created successfully with id: {}", savedOrder.getOrderId());
 
-        return mapToResponseDTO(savedOrder);
+        return ordermapper.mapToResponseDTO(savedOrder);
     }
 
     // Get All Orders
@@ -79,7 +85,7 @@ public class OrderService {
 
         return orderRepository.findAll()
                 .stream()
-                .map(this::mapToResponseDTO)
+                .map(ordermapper::mapToResponseDTO)
                 .collect(Collectors.toList());
     }
 
@@ -90,7 +96,7 @@ public class OrderService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Order not found with id: " + id));
 
-        return mapToResponseDTO(order);
+        return ordermapper.mapToResponseDTO(order);
     }
 
     // Cancel Order
@@ -104,28 +110,8 @@ public class OrderService {
 
         Orders updatedOrder = orderRepository.save(order);
 
-        return mapToResponseDTO(updatedOrder);
+        return ordermapper.mapToResponseDTO(updatedOrder);
     }
 
-    // Mapping Method (Orders → OrderResponseDTO)
-    private OrderResponseDTO mapToResponseDTO(Orders order) {
 
-        OrderResponseDTO dto = new OrderResponseDTO();
-
-        dto.setId((int) order.getOrderId());
-        dto.setStatus(order.getStatus());
-        dto.setTotalAmount(order.getTotalAmount());
-
-        List<OrderItemResponseDTO> items = order.getOrderItems().stream().map(item -> {
-            OrderItemResponseDTO itemDTO = new OrderItemResponseDTO();
-            itemDTO.setProductId((int) item.getProduct().getProductId());
-            itemDTO.setQuantity(item.getQuantity());
-            itemDTO.setPrice(item.getPrice());
-            return itemDTO;
-        }).collect(Collectors.toList());
-
-        dto.setItems(items);
-
-        return dto;
-    }
 }

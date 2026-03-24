@@ -1,5 +1,6 @@
 package com.oms.dto;
 
+import com.oms.entity.Customer;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -16,4 +17,13 @@ public class OrderItemRequestDTO {
 
     @NotBlank (message = "Warehouse name is required")
     private String warehousename;
+
+    private int customerId;
+
+    private String guestName;
+
+
+    private String guestEmail;
+
+    private String guestPhone;
 }
