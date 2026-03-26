@@ -14,39 +14,50 @@ import java.util.List;
 @RequestMapping("/oms/inventory")
 public class InventoryController {
 
+    private final InventoryService inventoryService;
 
-    @Autowired
-    private InventoryService inventoryService;
+    // ✅ Constructor Injection (BEST PRACTICE)
+    public InventoryController(InventoryService inventoryService) {
+        this.inventoryService = inventoryService;
+    }
 
-//    // Constructor Injection (same as ProductController)
-//    public InventoryController(InventoryService inventoryService) {
-//        this.inventoryService = inventoryService;
-//    }
-
-    //  Add / Update Inventory
+    // ✅ 1. Add / Update Inventory
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public InventoryResponseDTO addOrUpdateInventory(@Valid @RequestBody InventoryRequestDTO request) {
+    public InventoryResponseDTO addOrUpdateInventory(
+            @Valid @RequestBody InventoryRequestDTO request) {
 
         return inventoryService.addOrUpdateInventory(request);
     }
 
-    // ✅ Service 1: Get product availability (from Product + Warehouse + Inventory)
+    // ✅ 2. Get Product Availability
     @GetMapping("/product/{productId}")
-    public List<InventoryResponseDTO> getProductAvailability(@PathVariable int productId) {
+    public List<InventoryResponseDTO> getProductAvailability(
+            @PathVariable int productId) {
+
         return inventoryService.getProductAvailability(productId);
     }
 
-    // ✅ Service 2: Reduce inventory after order
+    // ✅ 3. Reduce Inventory (after order)
     @PostMapping("/reduce")
     @ResponseStatus(HttpStatus.OK)
-    public InventoryResponseDTO reduceInventory(@Valid @RequestBody InventoryRequestDTO request) {
-
-//        @RequestParam int productId,
-//        @RequestParam int warehouseId,
-//        @RequestParam int quantity
+    public InventoryResponseDTO reduceInventory(
+            @Valid @RequestBody InventoryRequestDTO request) {
 
         return inventoryService.reduceInventory(
+                request.getProductId(),
+                request.getWarehouseId(),
+                request.getQuantity()
+        );
+    }
+
+    // ✅ 4. Restore Inventory (when order is cancelled)
+    @PostMapping("/restore")
+    @ResponseStatus(HttpStatus.OK)
+    public InventoryResponseDTO restoreInventory(
+            @Valid @RequestBody InventoryRequestDTO request) {
+
+        return inventoryService.restoreInventory(
                 request.getProductId(),
                 request.getWarehouseId(),
                 request.getQuantity()
