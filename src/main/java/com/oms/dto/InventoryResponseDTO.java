@@ -20,4 +20,6 @@ public class InventoryResponseDTO {
     private int quantity;
 
     private LocalDateTime lastUpdated;
+
+    private boolean isAvailable;
 }

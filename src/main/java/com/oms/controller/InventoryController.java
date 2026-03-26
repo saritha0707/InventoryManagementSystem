@@ -63,4 +63,19 @@ public class InventoryController {
                 request.getQuantity()
         );
     }
+    @GetMapping("/availability")
+    public boolean isProductAvailable(
+            @RequestParam int productId,
+            @RequestParam int warehouseId,
+            @RequestParam int quantity) {
+
+        List<InventoryResponseDTO> inventories =
+                inventoryService.getProductAvailability(productId);
+
+        return inventories.stream()
+                .anyMatch(inv ->
+                        inv.getWarehouseId() == warehouseId &&
+                                inv.getQuantity() >= quantity
+                );
+    }
 }
