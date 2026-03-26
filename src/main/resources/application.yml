@@ -1,13 +1,41 @@
 spring:
-  kafka:
-    bootstrap-servers: localhost:9092
+  datasource:
+    url: jdbc:mysql://localhost:3306/ordermanagementsystem
+    username: root
+    password: mysql070711
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    database-platform: org.hibernate.dialect.MySQLDialect
+
+  kafka:
     producer:
+      bootstrap-servers: localhost:9092
+      group-id: order-group
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
     consumer:
+      bootstrap-servers: localhost:9092
       group-id: order-group
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring:
+          json:
+            trusted:
+              packages: "*"
+            value:
+              default:
+                type: com.oms.dto.OrderRequestDTO
+
+logging:
+  level:
+    org.springframework.kafka: DEBUG
