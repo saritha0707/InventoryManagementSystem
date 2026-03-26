@@ -1,31 +1,33 @@
 package com.oms.service;
 
-import com.oms.dto.InventoryRequest;
-import com.oms.dto.InventoryResponse;
+import com.oms.dto.InventoryRequestDTO;
+import com.oms.dto.InventoryResponseDTO;
 import com.oms.entity.Inventory;
 import com.oms.entity.Product;
 import com.oms.entity.Warehouse;
+import com.oms.exception.ResourceNotFoundException;
+import com.oms.mapper.InventoryMapper;
 import com.oms.repository.InventoryRepository;
 import com.oms.repository.ProductRepository;
 import com.oms.repository.WarehouseRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
-
+@Slf4j
 @Service
 public class InventoryService {
 
+
+   // private InventoryMapper inventoryMapper;
     private final InventoryRepository inventoryRepository;
     private final ProductRepository productRepository;
     private final WarehouseRepository warehouseRepository;
 
-    public InventoryService(InventoryRepository inventoryRepository,
-                            ProductRepository productRepository,
-                            WarehouseRepository warehouseRepository) {
+    public InventoryService(InventoryRepository inventoryRepository, ProductRepository productRepository, WarehouseRepository warehouseRepository) {
         this.inventoryRepository = inventoryRepository;
         this.productRepository = productRepository;
         this.warehouseRepository = warehouseRepository;
@@ -33,72 +35,104 @@ public class InventoryService {
 
     // ✅ 1. Add or Update Inventory
     @Transactional
-    public InventoryResponse addOrUpdateInventory(InventoryRequest request) {
+    public InventoryResponseDTO addOrUpdateInventory(InventoryRequestDTO request) {
+        log.info("Add/Update inventory request received: productId={}, warehouseId={}, quantity={}", request.getProductId(), request.getWarehouseId(), request.getQuantity());
 
-        Product product = productRepository.findById(Math.toIntExact(request.getProductId()))
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+        // ✅ Validation
+        if (request.getProductId() <= 0 || request.getWarehouseId() <= 0) {
+            throw new IllegalArgumentException("ProductId and WarehouseId must be valid positive numbers\"");
+        }
 
-        Warehouse warehouse = warehouseRepository.findById(Math.toIntExact(request.getWarehouseId()))
-                .orElseThrow(() -> new RuntimeException("Warehouse not found"));
+        if (request.getQuantity() < 0) {
+            throw new IllegalArgumentException("Quantity cannot be negative");
+        }
 
+        //fetch product
+        Product product = productRepository.findById(request.getProductId()).orElseThrow(() -> {
+            log.error("Product not found with id={}", request.getProductId());
+            return new ResourceNotFoundException("Product not found:" + request.getProductId());
+        });
+
+        //fetch Warehouse
+        Warehouse warehouse = warehouseRepository.findById(request.getWarehouseId()).orElseThrow(() -> {
+            log.error("Warehouse not found with id={}", request.getWarehouseId());
+            return new ResourceNotFoundException("Warehouse not found: " + request.getWarehouseId());
+        });
         // Check if inventory already exists
-        Inventory inventory = inventoryRepository
-                .findByProduct_ProductIdAndWarehouse_WarehouseId(
-                        Math.toIntExact(request.getProductId()),
-                        Math.toIntExact(request.getWarehouseId())
-                )
-                .orElse(new Inventory());
+        Inventory inventory = inventoryRepository.findByProduct_ProductIdAndWarehouse_WarehouseId(request.getProductId(), request.getWarehouseId())
 
-        inventory.setProduct(product);
-        inventory.setWarehouse(warehouse);
-        inventory.setQuantity(request.getQuantity());
-        inventory.setLastUpdated(LocalDateTime.now());
+                .orElse(null);
+
+        if (inventory == null) {
+            log.info("Creating new inventory record");
+            inventory = InventoryMapper.toEntity(request, product, warehouse);
+        } else {
+            log.info("Updating existing inventory record with id={}", inventory.getInventoryId());
+            InventoryMapper.updateEntity(inventory, request);
+        }
 
         Inventory saved = inventoryRepository.save(inventory);
+        log.info("Inventory saved successfully with id={}", saved.getInventoryId());
 
-        return mapToResponse(saved);
+        return InventoryMapper.toResponse(saved);
     }
 
     // ✅ 2. Get Product Availability
-    public List<InventoryResponse> getProductAvailability(int productId) {
+    public List<InventoryResponseDTO> getProductAvailability(int productId) {
+        log.info("Fetching inventory for productId={}", productId);
+
         List<Inventory> inventories = inventoryRepository.findByProduct_ProductId(productId);
-        return inventories.stream()
-                .map(this::mapToResponse)
-                .toList();
+        if (inventories.isEmpty()) {
+            log.warn("No inventory found for productId={}", productId);
+        }
+
+        return InventoryMapper.toResponseList(inventories);
     }
 
     // ✅ 3. Reduce Inventory (after order)
     @Transactional
-    public void reduceInventory(int productId, int warehouseId, int quantity) {
-
-        Inventory inventory = inventoryRepository
-                .findByProduct_ProductIdAndWarehouse_WarehouseId(Math.toIntExact(productId), Math.toIntExact(warehouseId))
-                .orElseThrow(() -> new RuntimeException("Inventory not found"));
-
+    public InventoryResponseDTO reduceInventory(int productId, int warehouseId, int quantity) {
+        log.info("Reducing inventory: productId={}, warehouseId={}, quantity={}", productId, warehouseId, quantity);
         if (quantity <= 0) {
-            throw new RuntimeException("Quantity must be greater than 0");
+            throw new IllegalArgumentException("Quantity must be greater than 0");
         }
+        //fetch inventory
+        Inventory inventory = inventoryRepository
+                .findByProduct_ProductIdAndWarehouse_WarehouseId(productId, warehouseId)
+                .orElseThrow(() -> {
+                    log.error("Inventory not found for productId={} and warehouseId={}", productId, warehouseId);
+                    return new ResourceNotFoundException(
+                            "Inventory not found for productId=" + productId + " and warehouseId=" + warehouseId);
+                });
 
+        //check quantity
         if (inventory.getQuantity() < quantity) {
-            throw new RuntimeException("Insufficient stock");
+            log.error("Insufficient stock: available={}, requested={}",
+                    inventory.getQuantity(), quantity);
+            throw new IllegalStateException("Insufficient stock");
         }
-
+        //Reduce stock
         inventory.setQuantity(inventory.getQuantity() - quantity);
         inventory.setLastUpdated(LocalDateTime.now());
 
         inventoryRepository.save(inventory);
+        log.info("Inventory reduced successfully. Remaining quantity={}", inventory.getQuantity());
+
+        return InventoryMapper.toResponseList(List.of(inventory)).get(0);
     }
 
     // ✅ Mapper Method (Entity → DTO)
-    private InventoryResponse mapToResponse(Inventory inventory) {
-        return InventoryResponse.builder()
+   /* private InventoryResponseDTO mapToResponse(Inventory inventory) {
+        return InventoryResponseDTO.builder()
                 .inventoryId((int) inventory.getInventoryId())
                 .productId((int) inventory.getProduct().getProductId())
                 .productName(inventory.getProduct().getProductName())
                 .warehouseId((int) inventory.getWarehouse().getWarehouseId())
                 .warehouseName(inventory.getWarehouse().getWarehouseName())
                 .quantity(inventory.getQuantity())
-                .lastUpdated(inventory.getLastUpdated())
+                .lastUpdated(inventroy.getLastUpdated())
                 .build();
-    }
+    }*/
+
+
 }

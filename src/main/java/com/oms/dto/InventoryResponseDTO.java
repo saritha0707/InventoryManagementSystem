@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 @Data
 @Builder
-public class InventoryResponse {
+public class InventoryResponseDTO {
 
     private int inventoryId;
 

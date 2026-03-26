@@ -1,16 +1,14 @@
 package com.oms.service;
-
-import com.oms.dto.ProductRequest;
-import com.oms.dto.ProductResponse;
+import com.oms.dto.ProductRequestDTO;
+import com.oms.dto.ProductResponseDTO;
 import com.oms.entity.Product;
+import com.oms.exception.ResourceNotFoundException;
 import com.oms.mapper.ProductMapper;
 import com.oms.repository.ProductRepository;
-import org.apache.coyote.BadRequestException;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
-
+@Slf4j
 @Service
 public class ProductServiceImplementation implements ProductService{
 
@@ -22,27 +20,39 @@ public class ProductServiceImplementation implements ProductService{
     }
 
     @Override
-    public ProductResponse createProduct(ProductRequest request) throws BadRequestException {
-        if (request.getPrice() == null || request.getPrice().doubleValue() <= 0) {
-            throw new BadRequestException("Price must be greater than zero");
-        }
-
-        if (request.getProductName() == null || request.getProductName().isBlank()) {
-            throw new BadRequestException("Product name is required");
-        }
+    public ProductResponseDTO createProduct(ProductRequestDTO request)  {
+        log.info("Creating product: {}", request.getProductName());
 
         Product product = ProductMapper.toEntity(request);
+
         Product savedProduct = productRepository.save(product);
+
+        log.info("Product created with id={}", savedProduct.getProductId());
+
         return ProductMapper.toResponse(savedProduct);
+
     }
 
     @Override
-    public List<Product> getAllProducts() {
-        return productRepository.findAll();
+    public List<ProductResponseDTO> getAllProducts() {
+        log.info("Fetching all products");
+        List<Product> products = productRepository.findAll();
+        return products.stream()
+                .map(ProductMapper::toResponse)
+                .toList();
+
     }
 
     @Override
-    public Product getProductById(int productId) {
-        return productRepository.findById(productId).orElseThrow(() -> new RuntimeException(("Product not found")));
+    public ProductResponseDTO getProductById(int productId) {
+        log.info("Fetching product with id={}", productId);
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> {
+                    log.error("Product not found with id={}", productId);
+                    return new ResourceNotFoundException("Product not found: " + productId);
+                });
+
+        return ProductMapper.toResponse(product);
     }
 }

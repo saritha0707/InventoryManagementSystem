@@ -8,7 +8,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 
 @Data
-public class ProductRequest {
+public class ProductRequestDTO {
 
     @NotBlank(message = "Product Name must not be blank")
     private String productName;
