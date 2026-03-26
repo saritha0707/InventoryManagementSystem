@@ -3,6 +3,8 @@ package com.oms.service;
 import com.oms.dto.InventoryRequestDTO;
 import com.oms.dto.OrderItemRequestDTO;
 import com.oms.dto.OrderRequestDTO;
+import com.oms.event.InventoryUpdatedEvent;
+import com.oms.event.OrderCreatedEvent;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
@@ -23,5 +25,11 @@ public class KafkaProducerService {
     public void sendInventoryItemDetails(InventoryRequestDTO inv) {
         kafkaTemplate.send(Inventory_TOPIC, inv);
         System.out.println("Inventory Response event sent: " + inv);
+    }
+
+    public void publishInventoryUpdatedEvent(InventoryUpdatedEvent event) {
+    }
+
+    public void publishOrderCreatedEvent(OrderCreatedEvent event) {
     }
 }

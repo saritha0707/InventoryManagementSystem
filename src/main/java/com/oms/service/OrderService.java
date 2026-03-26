@@ -3,6 +3,7 @@ package com.oms.service;
 import com.oms.dto.OrderRequestDTO;
 import com.oms.dto.OrderResponseDTO;
 import com.oms.entity.*;
+import com.oms.event.OrderCreatedEvent;
 import com.oms.exception.ResourceNotFoundException;
 import com.oms.mapper.OrderMapper;
 import com.oms.repository.CustomerRepository;
@@ -16,7 +17,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -89,21 +92,54 @@ public class OrderService {
         log.info("Order saved successfully with ID: {}", savedOrder.getOrderId());
 
         //  FIX 6: Kafka AFTER DB commit (basic safe approach)
-//        sendKafkaEventSafely(savedOrder);
+        sendKafkaEventSafely(savedOrder);
 
         return orderMapper.mapToResponseDTO(savedOrder);
     }
 
     //  FIX 7: Extracted Kafka logic (clean + reusable)
-   /* private void sendKafkaEventSafely(Orders order) {
+    private void sendKafkaEventSafely(Orders order) {
         try {
-            producerService.sendOrderCreatedEvent(order);
+            OrderCreatedEvent event = buildOrderCreatedEvent(order);
+            producerService.publishOrderCreatedEvent(event);
             log.info("Kafka event sent for orderId={}", order.getOrderId());
         } catch (Exception e) {
             log.error("Kafka publishing failed for orderId={}", order.getOrderId(), e);
             // 🔥 Future: Outbox pattern / retry queue
         }
-    }*/
+    }
+
+    /**
+     * Builds OrderCreatedEvent from saved order entity
+     */
+    private OrderCreatedEvent buildOrderCreatedEvent(Orders order) {
+        // Build item events
+        List<OrderCreatedEvent.OrderItemEvent> itemEvents = order.getOrderItems().stream()
+                .map(item -> OrderCreatedEvent.OrderItemEvent.builder()
+                        .orderItemId((long) item.getOrderItemId())
+                        .productId(item.getProduct().getProductId())
+                        .productName(item.getProduct().getProductName())
+                        .quantity(item.getQuantity())
+                        .price(item.getPrice())
+                        .warehouseName(item.getWarehouse() != null ? item.getWarehouse().getWarehouseName() : null)
+                        .build())
+                .collect(Collectors.toList());
+
+        // Build main event
+        return OrderCreatedEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .orderId((long) order.getOrderId())
+                .customerId(order.getCustomer() != null ? order.getCustomer().getCustomerId() : null)
+                .customerName(order.getCustomer() != null ? order.getCustomer().getName() : null)
+                .guestName(order.getGuestName())
+                .guestEmail(order.getGuestEmail())
+                .guestPhone(order.getGuestPhone())
+                .totalAmount(order.getTotalAmount())
+                .status(order.getStatus())
+                .timestamp(LocalDateTime.now())
+                .items(itemEvents)
+                .build();
+    }
 
     //  FIX 8: Strong validation logic
     private void validateCustomerOrGuest(OrderRequestDTO dto) {

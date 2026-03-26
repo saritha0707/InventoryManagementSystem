@@ -20,8 +20,12 @@ public class Warehouse {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(nullable = true)
     private int warehouseId;
+
+    @Column(unique = true, nullable = false)
     private String warehouseName;
+
     private String location;
 
     @OneToMany(mappedBy = "warehouse")

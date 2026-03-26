@@ -15,18 +15,18 @@ spring:
     database-platform: org.hibernate.dialect.MySQLDialect
 
   kafka:
+    bootstrap-servers: localhost:9092
+
     producer:
-      bootstrap-servers: localhost:9092
-      group-id: order-group
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
     consumer:
-      bootstrap-servers: localhost:9092
       group-id: order-group
       auto-offset-reset: earliest
+      enable-auto-commit: false
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
         spring:
           json:
@@ -34,8 +34,19 @@ spring:
               packages: "*"
             value:
               default:
-                type: com.oms.dto.OrderRequestDTO
+                type: com.oms.event.OrderCreatedEvent
+
+# Custom Kafka Topics Configuration
+kafka:
+  topics:
+    order-events: order-events
+    inventory-events: inventory-events
+  consumer:
+    group-id: order-group
+    max-retry-attempts: 3
+    retry-backoff-ms: 2000
 
 logging:
   level:
     org.springframework.kafka: DEBUG
+    com.oms.service: DEBUG
