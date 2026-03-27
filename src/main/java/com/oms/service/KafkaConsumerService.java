@@ -76,7 +76,41 @@ public class KafkaConsumerService {
                 event.getEventId(), event.getOrderId(), partition, offset);
 
         try {
-            // STEP 1: Idempotency Check
+            // STEP 1: Validate critical fields FIRST (before idempotency check)
+            if (event.getEventId() == null || event.getEventId().isBlank()) {
+                log.error("Invalid event: eventId is null or empty. Discarding message.");
+                acknowledgment.acknowledge(); // Acknowledge to prevent retry loop
+                return;
+            }
+
+            if (event.getOrderId() == null) {
+                log.error("Invalid event: orderId is null. EventId={}", event.getEventId());
+                acknowledgment.acknowledge(); // Acknowledge to prevent retry loop
+                return;
+            }
+
+            // Validate items and warehouseName
+            if (event.getItems() == null || event.getItems().isEmpty()) {
+                log.error("Invalid event: items list is null or empty. EventId={}", event.getEventId());
+                acknowledgment.acknowledge(); // Acknowledge to prevent retry loop
+                return;
+            }
+
+            for (OrderCreatedEvent.OrderItemEvent item : event.getItems()) {
+                if (item.getWarehouseName() == null || item.getWarehouseName().isBlank()) {
+                    log.error("Invalid event: warehouseName is null for productId={}. EventId={}",
+                            item.getProductId(), event.getEventId());
+                    acknowledgment.acknowledge(); // Acknowledge to prevent retry loop
+                    return;
+                }
+                if (item.getProductId() == null) {
+                    log.error("Invalid event: productId is null. EventId={}", event.getEventId());
+                    acknowledgment.acknowledge(); // Acknowledge to prevent retry loop
+                    return;
+                }
+            }
+
+            // STEP 2: Idempotency Check
             if (isEventAlreadyProcessed(event.getEventId())) {
                 log.warn("Event already processed, skipping: eventId={}", event.getEventId());
                 acknowledgment.acknowledge();

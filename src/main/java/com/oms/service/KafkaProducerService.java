@@ -28,8 +28,16 @@ public class KafkaProducerService {
     }
 
     public void publishInventoryUpdatedEvent(InventoryUpdatedEvent event) {
+        kafkaTemplate.send(Inventory_TOPIC, event);
+        System.out.println("InventoryUpdatedEvent sent: eventId=" + event.getEventId() +
+                ", productId=" + event.getProductId() +
+                ", status=" + event.getStatus());
     }
 
     public void publishOrderCreatedEvent(OrderCreatedEvent event) {
+        kafkaTemplate.send(Order_TOPIC, event);
+        System.out.println("OrderCreatedEvent sent: eventId=" + event.getEventId() +
+                ", orderId=" + event.getOrderId() +
+                ", status=" + event.getStatus());
     }
 }
