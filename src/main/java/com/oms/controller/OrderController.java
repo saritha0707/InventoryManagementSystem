@@ -7,6 +7,7 @@ import com.oms.dto.OrderStatusUpdateResponseDTO;
 import com.oms.service.*;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +20,7 @@ public class OrderController {
     private OrderService orderService;
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     public OrderResponseDTO createOrder(@Valid @RequestBody OrderRequestDTO dto) {
         return orderService.createOrder(dto);
     }
@@ -33,10 +35,9 @@ public class OrderController {
         return orderService.getOrderById(id);
     }
 
-    //Still working on error scenarios WIP
-    @PutMapping("/status")
+    @PutMapping("/status/update")
     public OrderStatusUpdateResponseDTO updateOrderStatus(
             @RequestBody OrderStatusUpdateRequestDTO request) {
-        return orderService.updateOrderStatus(request.getOrderId(),request.getStatus());
+        return orderService.updateOrderStatus(request.getOrderId(),request.getOrder_status());
     }
 }

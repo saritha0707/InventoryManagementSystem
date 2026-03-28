@@ -5,6 +5,7 @@ import com.oms.dto.OrderResponseDTO;
 import com.oms.dto.OrderStatusUpdateResponseDTO;
 import com.oms.entity.*;
 import com.oms.event.OrderCreatedEvent;
+import com.oms.exception.CustomerOrGuestValidationException;
 import com.oms.exception.InvalidOrderStatusException;
 import com.oms.exception.ResourceNotFoundException;
 import com.oms.mapper.OrderMapper;
@@ -12,6 +13,8 @@ import com.oms.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -68,8 +71,7 @@ public class OrderService {
         //  FIX 3: Map items with warehouse (ER aligned)
         List<OrderItem> orderItems = dto.getItems().stream().map(itemDTO -> {
 
-            // we need to send message to kafka topic and it should be consumed by inventory service
-            producerService.sendOrderItemDetails(dto);
+           //  producerService.sendOrderItemDetails(dto);
 
             //get details from inventory service and then call below lines
             Product product = productRepository.findById(itemDTO.getProductId()).orElseThrow(() -> new ResourceNotFoundException("Product not found: " + itemDTO.getProductId()));
@@ -84,14 +86,12 @@ public class OrderService {
             item.setOrder(order);
 
             //below method is trying to reduce inventory for items
-            inventoryService.reduceInventory(itemDTO.getProductId(),itemDTO.getWarehouseId(),itemDTO.getQuantity());
+           inventoryService.reduceInventory(itemDTO.getProductId(),itemDTO.getWarehouseId(),itemDTO.getQuantity());
             return item;
 
         }).collect(Collectors.toList());
 
         order.setOrderItems(orderItems);
-
-        //reduce inventory
 
         //  FIX 4: Calculate total safely
         BigDecimal totalAmount = orderItems.stream().map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -100,18 +100,20 @@ public class OrderService {
 
         //  FIX 5: Save FIRST (important for consistency)
         Orders savedOrder = orderRepository.save(order);
+        //Update OrderStatusHistory collection
         OrdersStatusHistory statusHistory = new OrdersStatusHistory();
         statusHistory.setOrder(savedOrder);
         statusHistory.setStatus(savedOrder.getStatus());
-        statusHistory.setChangedBy("User");
+        statusHistory.setChangedBy("USER");
         OrdersStatusHistory savedstatusHistory = statusHistoryRepository.save(statusHistory);
 
         log.info("Order saved successfully with ID: {}", savedOrder.getOrderId());
 
         //  FIX 6: Kafka AFTER DB commit (basic safe approach)
-        sendKafkaEventSafely(savedOrder);
-
-        return orderMapper.mapToResponseDTO(savedOrder);
+        //Update Inventory
+        //sendKafkaEventSafely(savedOrder);
+        OrderResponseDTO response = orderMapper.mapToResponseDTO(savedOrder);
+        return new ResponseEntity<>(response, HttpStatus.CREATED).getBody();
     }
 
     //  FIX 7: Extracted Kafka logic (clean + reusable)
@@ -163,7 +165,7 @@ public class OrderService {
 
         if (dto.getCustomerId() == null) {
             if (dto.getGuestName() == null || dto.getGuestEmail() == null) {
-                throw new IllegalArgumentException("Either customerId OR guestName & guestEmail must be provided");
+                throw new CustomerOrGuestValidationException("Either customerId OR guestName & guestEmail must be provided");
             }
         }
     }
@@ -202,39 +204,92 @@ public class OrderService {
         return orderMapper.mapToResponseDTO(updatedOrder);
     }
 
-    //String working on error scenarios - WIP
     public OrderStatusUpdateResponseDTO updateOrderStatus(int orderId, String status) {
+
         Orders order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
-        String orderStatus = "";
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        // ✅ Convert input status → Enum
+        OrderStatus newStatus;
         try {
-            orderStatus = OrderStatus.valueOf(status.toUpperCase()).name();
+            newStatus = OrderStatus.valueOf(status.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new InvalidOrderStatusException("Not a valid status");
         }
-        if (orderStatus == OrderStatus.CANCELLED.name()) {
-            if(order.getStatus() == "SHIPPED" || order.getStatus() == "CANCELLED") {
-                String message = "Order status is already" + order.getStatus();
-                throw new InvalidOrderStatusException(message);
-            }
-            else
-                cancelOrder(orderId);
+
+        // ✅ Convert DB status (String → Enum)
+        OrderStatus currentStatus;
+        try {
+            currentStatus = OrderStatus.valueOf(order.getStatus().toUpperCase());
+        } catch (Exception e) {
+            throw new InvalidOrderStatusException("Invalid status in DB: " + order.getStatus());
         }
 
-        // Set validated status
-        order.setStatus(orderStatus);
+        // ✅ Prevent same status update
+        if (currentStatus == newStatus) {
+            throw new InvalidOrderStatusException(
+                    "Order is already in "+currentStatus+" status."
+            );
+        }
+
+        // ✅ Handle CANCELLED separately
+        if (newStatus == OrderStatus.CANCELLED) {
+
+            if (currentStatus == OrderStatus.SHIPPED ||
+                    currentStatus == OrderStatus.CANCELLED) {
+
+                throw new InvalidOrderStatusException(
+                        "Order cannot be CANCELLED when status is " + currentStatus
+                );
+            }
+
+            cancelOrder(orderId);
+        }
+
+        // ✅ Forward flow validation
+        if (!isValidTransition(currentStatus, newStatus)) {
+            throw new InvalidOrderStatusException(
+                    "Invalid status transition from " + currentStatus + " to " + newStatus
+            );
+        }
+
+        // ✅ Update status
+        order.setStatus(newStatus.name());
         orderRepository.save(order);
 
-        // Save status history
-        OrdersStatusHistory statusHistory = new OrdersStatusHistory();
-        statusHistory.setOrder(order);
-        statusHistory.setStatus(orderStatus);
-        statusHistory.setChangedBy("USER");
-        statusHistoryRepository.save(statusHistory);
+        // ✅ Save history
+        OrdersStatusHistory history = new OrdersStatusHistory();
+        history.setOrder(order);
+        history.setStatus(newStatus.name());
+        history.setChangedBy("USER");
+        statusHistoryRepository.save(history);
 
-        // Response
+        // ✅ Response
         OrderStatusUpdateResponseDTO response = new OrderStatusUpdateResponseDTO();
         response.setMessage("Order status updated successfully");
         return response;
+    }
+
+    private boolean isValidTransition(OrderStatus current, OrderStatus next) {
+
+        switch (current) {
+
+            case CREATED:
+                return next == OrderStatus.PROCESSED ||
+                        next == OrderStatus.CANCELLED;
+
+            case PROCESSED:
+                return next == OrderStatus.SHIPPED ||
+                        next == OrderStatus.CANCELLED;
+
+            case SHIPPED:
+                return false; // no further transitions
+
+            case CANCELLED:
+                return false; // terminal state
+
+            default:
+                return false;
+        }
     }
 }

@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/oms/inventory")
+@RequestMapping("/inventory")
 public class InventoryController {
 
     private final InventoryService inventoryService;
@@ -63,19 +63,14 @@ public class InventoryController {
                 request.getQuantity()
         );
     }
+
     @GetMapping("/availability")
     public boolean isProductAvailable(
             @RequestParam int productId,
             @RequestParam int warehouseId,
             @RequestParam int quantity) {
 
-        List<InventoryResponseDTO> inventories =
-                inventoryService.getProductAvailability(productId);
-
-        return inventories.stream()
-                .anyMatch(inv ->
-                        inv.getWarehouseId() == warehouseId &&
-                                inv.getQuantity() >= quantity
-                );
+        return inventoryService.isProductAvailable(productId, warehouseId, quantity);
     }
+
 }

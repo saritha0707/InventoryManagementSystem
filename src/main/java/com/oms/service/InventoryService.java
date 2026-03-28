@@ -109,6 +109,17 @@ public class InventoryService {
         return InventoryMapper.toResponseList(inventories);
     }
 
+    public boolean isProductAvailable(int productId, int warehouseId, int quantity) {
+
+        List<InventoryResponseDTO> inventories = getProductAvailability(productId);
+
+        return inventories.stream()
+                .anyMatch(inv ->
+                        inv.getWarehouseId() == warehouseId &&
+                                inv.getQuantity() >= quantity
+                );
+    }
+
     // ✅ 3. Reduce Inventory (after order)
     @Transactional
     public InventoryResponseDTO reduceInventory(int productId, int warehouseId, int quantity) {

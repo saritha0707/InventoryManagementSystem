@@ -14,7 +14,6 @@ public class BadRequestException extends RuntimeException{
     {
         ErrorResponse error = new ErrorResponse(
                 LocalDateTime.now(),
-                HttpStatus.BAD_REQUEST.value(),
                 "Price",
                 ex.getMessage());
         return new ResponseEntity<>(error,HttpStatus.BAD_REQUEST);

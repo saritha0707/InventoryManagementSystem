@@ -6,6 +6,6 @@ import lombok.Data;
 public class OrderStatusUpdateRequestDTO {
 
     int orderId;
-    String status;
+    String order_status;
 
 }
