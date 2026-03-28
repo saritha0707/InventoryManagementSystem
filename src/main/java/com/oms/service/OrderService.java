@@ -4,6 +4,7 @@ import com.oms.dto.OrderRequestDTO;
 import com.oms.dto.OrderResponseDTO;
 import com.oms.dto.OrderStatusUpdateResponseDTO;
 import com.oms.entity.*;
+import com.oms.enums.PaymentMethod;
 import com.oms.event.OrderCreatedEvent;
 import com.oms.exception.CustomerOrGuestValidationException;
 import com.oms.exception.InvalidOrderStatusException;
@@ -46,6 +47,9 @@ public class OrderService {
 
     @Autowired
     private InventoryService inventoryService;
+
+    @Autowired
+    PaymentRepository paymentRepository;
 
     @Transactional
     public OrderResponseDTO createOrder(OrderRequestDTO dto) {
@@ -100,7 +104,19 @@ public class OrderService {
 
         //  FIX 5: Save FIRST (important for consistency)
         Orders savedOrder = orderRepository.save(order);
-        //Update OrderStatusHistory collection
+
+        //update Payment Table
+        Payment payment = new Payment();
+        payment.setAmount(totalAmount);
+        payment.setOrder(savedOrder);
+        payment.setPaymentMethod(dto.getPaymentMethod());
+        if(dto.getPaymentMethod() == PaymentMethod.ONLINE)
+        payment.setPaymentStatus("PAID");
+        else if (dto.getPaymentMethod() == PaymentMethod.CASH_ON_DELIVERY)
+            payment.setPaymentStatus("PENDING");
+        paymentRepository.save(payment);
+
+        //Update OrderStatusHistory Table
         OrdersStatusHistory statusHistory = new OrdersStatusHistory();
         statusHistory.setOrder(savedOrder);
         statusHistory.setStatus(savedOrder.getStatus());
@@ -200,7 +216,17 @@ public class OrderService {
                         item.getWarehouse().getWarehouseId(),
                         item.getQuantity()
                 ));
+        List<Payment> payments = paymentRepository.findByOrder(updatedOrder);
 
+        if (!payments.isEmpty()) {
+            Payment payment = payments.get(0);
+
+            if (payment.getPaymentMethod() == PaymentMethod.ONLINE) {
+                payment.setPaymentMethod(PaymentMethod.REFUND);
+                paymentRepository.save(payment);
+            }
+
+        }
         return orderMapper.mapToResponseDTO(updatedOrder);
     }
 

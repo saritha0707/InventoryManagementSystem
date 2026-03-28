@@ -21,4 +21,5 @@ public class OrderItemRequestDTO {
     @NotNull(message = "Warehouse ID is required")
     @Min(value = 1, message = "Warehouse ID must be valid")
     private Integer warehouseId;
+
 }

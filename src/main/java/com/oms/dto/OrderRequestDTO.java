@@ -3,11 +3,13 @@ package com.oms.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import com.oms.enums.PaymentMethod;
 
 @Data
 @NoArgsConstructor
@@ -26,4 +28,8 @@ public class OrderRequestDTO {
     private String guestEmail;
 
     private String guestPhone;
+
+    //Payment method - ONLINE,CASH_ON_DELIVERY(COD)
+    @NotNull(message = "Payment method is mandatory")
+    private PaymentMethod paymentMethod;
 }
