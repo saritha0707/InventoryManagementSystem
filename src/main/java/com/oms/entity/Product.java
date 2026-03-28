@@ -25,6 +25,7 @@ public class Product {
     private int productId;
 
     private String productName;
+    @Column(name = "description")
     private String productDescription;
     private BigDecimal price;
     private String category;

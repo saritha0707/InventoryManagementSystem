@@ -102,19 +102,19 @@ public class OrderService {
 
         order.setTotalAmount(totalAmount);
 
-        //  FIX 5: Save FIRST (important for consistency)
-        Orders savedOrder = orderRepository.save(order);
-
         //update Payment Table
         Payment payment = new Payment();
         payment.setAmount(totalAmount);
-        payment.setOrder(savedOrder);
+        payment.setOrder(order);
         payment.setPaymentMethod(dto.getPaymentMethod());
         if(dto.getPaymentMethod() == PaymentMethod.ONLINE)
         payment.setPaymentStatus("PAID");
         else if (dto.getPaymentMethod() == PaymentMethod.CASH_ON_DELIVERY)
             payment.setPaymentStatus("PENDING");
-        paymentRepository.save(payment);
+        order.setPayments(List.of(payment));
+
+        //  FIX 5: Save FIRST (important for consistency)
+        Orders savedOrder = orderRepository.save(order);
 
         //Update OrderStatusHistory Table
         OrdersStatusHistory statusHistory = new OrdersStatusHistory();

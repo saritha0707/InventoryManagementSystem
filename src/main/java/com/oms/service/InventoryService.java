@@ -5,6 +5,8 @@ import com.oms.dto.InventoryResponseDTO;
 import com.oms.entity.Inventory;
 import com.oms.entity.Product;
 import com.oms.entity.Warehouse;
+import com.oms.exception.InsufficientStockException;
+import com.oms.exception.InvalidInventoryException;
 import com.oms.exception.ResourceNotFoundException;
 import com.oms.mapper.InventoryMapper;
 import com.oms.repository.InventoryRepository;
@@ -41,7 +43,7 @@ public class InventoryService {
                 .orElseThrow(() -> {
                     log.error("Inventory not found for productId={} and warehouseId={}",
                             productId, warehouseId);
-                    return new ResourceNotFoundException(
+                    return new InvalidInventoryException(
                             "Inventory not found for productId=" + productId +
                                     " and warehouseId=" + warehouseId);
                 });
@@ -55,11 +57,11 @@ public class InventoryService {
                 request.getProductId(), request.getWarehouseId(), request.getQuantity());
 
         if (request.getProductId() <= 0 || request.getWarehouseId() <= 0) {
-            throw new IllegalArgumentException("ProductId and WarehouseId must be valid positive numbers");
+            throw new InvalidInventoryException("ProductId and WarehouseId must be valid positive numbers");
         }
 
         if (request.getQuantity() < 0) {
-            throw new IllegalArgumentException("Quantity cannot be negative");
+            throw new InvalidInventoryException("Quantity cannot be negative");
         }
 
         Product product = productRepository.findById(request.getProductId())
@@ -128,7 +130,7 @@ public class InventoryService {
                 productId, warehouseId, quantity);
 
         if (quantity <= 0) {
-            throw new IllegalArgumentException("Quantity must be greater than 0");
+            throw new InvalidInventoryException("Quantity must be greater than 0");
         }
 
         Inventory inventory = getInventoryOrThrow(productId, warehouseId);
@@ -136,7 +138,7 @@ public class InventoryService {
         if (inventory.getQuantity() < quantity) {
             log.error("Insufficient stock: available={}, requested={}",
                     inventory.getQuantity(), quantity);
-            throw new IllegalStateException("Insufficient stock");
+            throw new InsufficientStockException(productId,inventory.getQuantity(),warehouseId);
         }
 
         // Reduce stock
@@ -158,7 +160,7 @@ public class InventoryService {
                 productId, warehouseId, quantity);
 
         if (quantity <= 0) {
-            throw new IllegalArgumentException("Quantity must be greater than 0");
+            throw new InvalidInventoryException("Quantity must be greater than 0");
         }
 
         Inventory inventory = getInventoryOrThrow(productId, warehouseId);
