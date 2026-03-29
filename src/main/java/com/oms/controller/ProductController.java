@@ -4,9 +4,9 @@ import java.util.List;
 import com.oms.dto.ProductRequestDTO;
 import com.oms.dto.ProductResponseDTO;
 import com.oms.entity.Product;
+import com.oms.exception.BadRequestException;
 import com.oms.service.ProductService;
 import jakarta.validation.Valid;
-import org.apache.coyote.BadRequestException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,7 +22,7 @@ public class ProductController {
     //Add Product
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ProductResponseDTO createProduct(@Valid @RequestBody ProductRequestDTO request) throws BadRequestException {
+    public ProductResponseDTO createProduct(@Valid @RequestBody ProductRequestDTO request) throws BadRequestException, org.apache.coyote.BadRequestException {
         return productService.createProduct(request);
     }
 

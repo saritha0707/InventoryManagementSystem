@@ -205,7 +205,7 @@ public class OrderService {
 
         //  FIX 9: Prevent invalid state transition
         if (CANCELLED.name().equals(order.getStatus())) {
-            throw new IllegalStateException("Order already cancelled");
+            throw new InvalidOrderStatusException("Order already cancelled");
         }
         order.setStatus(CANCELLED.name());
         Orders updatedOrder = orderRepository.save(order);
