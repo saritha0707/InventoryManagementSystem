@@ -17,16 +17,6 @@ public class KafkaProducerService {
     private static final String Order_TOPIC = "order-events";
     private static final String Inventory_TOPIC = "inventory-event";
 
-    public void sendOrderItemDetails(OrderRequestDTO dto) {
-        kafkaTemplate.send(Order_TOPIC, dto);
-        System.out.println("Item Details event sent: " + dto);
-    }
-
-    public void sendInventoryItemDetails(InventoryRequestDTO inv) {
-        kafkaTemplate.send(Inventory_TOPIC, inv);
-        System.out.println("Inventory Response event sent: " + inv);
-    }
-
     public void publishInventoryUpdatedEvent(InventoryUpdatedEvent event) {
         kafkaTemplate.send(Inventory_TOPIC, event);
         System.out.println("InventoryUpdatedEvent sent: eventId=" + event.getEventId() +

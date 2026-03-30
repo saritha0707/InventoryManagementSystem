@@ -88,9 +88,9 @@ public class OrderService {
             item.setQuantity(itemDTO.getQuantity());
             item.setPrice(product.getPrice());
             item.setOrder(order);
-
+             //We have already invoked this method during Kafka processing, so it has been commented out here to prevent multiple reductions of the product.
             //below method is trying to reduce inventory for items
-           inventoryService.reduceInventory(itemDTO.getProductId(),itemDTO.getWarehouseId(),itemDTO.getQuantity());
+            //inventoryService.reduceInventory(itemDTO.getProductId(),itemDTO.getWarehouseId(),itemDTO.getQuantity());
             return item;
 
         }).collect(Collectors.toList());
@@ -127,7 +127,7 @@ public class OrderService {
 
         //  FIX 6: Kafka AFTER DB commit (basic safe approach)
         //Update Inventory
-        //sendKafkaEventSafely(savedOrder);
+        sendKafkaEventSafely(savedOrder);
         OrderResponseDTO response = orderMapper.mapToResponseDTO(savedOrder);
         return new ResponseEntity<>(response, HttpStatus.CREATED).getBody();
     }
