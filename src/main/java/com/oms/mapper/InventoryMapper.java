@@ -45,6 +45,7 @@ public class InventoryMapper {
                 .warehouseName(warehouse != null ? warehouse.getWarehouseName() : null)
                 .quantity(inventory.getQuantity())
                 .lastUpdated(inventory.getLastUpdated())
+                .isAvailable(inventory.getQuantity() > 0) // ✅ ADDED THIS LINE
                 .build();
     }
 
