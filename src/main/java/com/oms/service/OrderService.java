@@ -156,6 +156,7 @@ public class OrderService {
                         .productName(item.getProduct().getProductName())
                         .quantity(item.getQuantity())
                         .price(item.getPrice())
+                        .warehouseId(item.getWarehouse() != null ? item.getWarehouse().getWarehouseId() : null)
                         .warehouseName(item.getWarehouse() != null ? item.getWarehouse().getWarehouseName() : null)
                         .build())
                 .collect(Collectors.toList());

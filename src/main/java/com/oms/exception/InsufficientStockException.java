@@ -6,27 +6,17 @@ package com.oms.exception;
  */
 public class InsufficientStockException extends RuntimeException {
 
-    private final Long productId;
-    private final int availableStock;
-    private final int requestedQuantity;
+    private final int availableQuantity;
 
-    public InsufficientStockException(Integer productId, int availableStock, int requestedQuantity) {
-        super(String.format("Insufficient stock: productId=%d, available=%d, requested=%d",
-                productId, availableStock, requestedQuantity));
-        this.productId = Long.valueOf(productId);
-        this.availableStock = availableStock;
-        this.requestedQuantity = requestedQuantity;
+    public InsufficientStockException(int productId, int availableQuantity, int requestedQuantity) {
+        super("Insufficient stock for productId=" + productId +
+                ", available=" + availableQuantity +
+                ", requested=" + requestedQuantity);
+
+        this.availableQuantity = availableQuantity;
     }
 
-    public Long getProductId() {
-        return productId;
-    }
-
-    public int getAvailableStock() {
-        return availableStock;
-    }
-
-    public int getRequestedQuantity() {
-        return requestedQuantity;
+    public int getAvailableQuantity() {
+        return availableQuantity;
     }
 }

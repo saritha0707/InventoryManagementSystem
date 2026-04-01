@@ -14,6 +14,7 @@ import com.oms.repository.ProductRepository;
 import com.oms.repository.WarehouseRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -122,12 +123,9 @@ public class InventoryService {
                 );
     }
 
-    // ✅ 3. Reduce Inventory (after order)
-    @Transactional
-    public InventoryResponseDTO reduceInventory(int productId, int warehouseId, int quantity) {
-
-        log.info("Reducing inventory: productId={}, warehouseId={}, quantity={}",
-                productId, warehouseId, quantity);
+    // ✅ Core logic (single source of truth)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Inventory reduceInventoryAndReturn(int productId, int warehouseId, int quantity) {
 
         if (quantity <= 0) {
             throw new InvalidInventoryException("Quantity must be greater than 0");
@@ -136,28 +134,37 @@ public class InventoryService {
         Inventory inventory = getInventoryOrThrow(productId, warehouseId);
 
         if (inventory.getQuantity() < quantity) {
-            log.error("Insufficient stock: available={}, requested={}",
-                    inventory.getQuantity(), quantity);
-            throw new InsufficientStockException(productId,inventory.getQuantity(),warehouseId);
+            throw new InsufficientStockException(
+                    productId,
+                    inventory.getQuantity(),   // available
+                    quantity                   // requested
+            );
         }
 
-        // Reduce stock
-        inventory.setQuantity(inventory.getQuantity() - quantity);
+        int previous = inventory.getQuantity();
+
+        inventory.setQuantity(previous - quantity);
         inventory.setLastUpdated(LocalDateTime.now());
 
         inventoryRepository.save(inventory);
 
-        log.info("Inventory reduced successfully. Remaining quantity={}", inventory.getQuantity());
+        log.info("Inventory reduced: productId={}, previous={}, new={}",
+                productId, previous, inventory.getQuantity());
 
-        return InventoryMapper.toResponseList(List.of(inventory)).get(0);
+        return inventory;
     }
 
-    // ✅ 4. Restore Inventory (when order is cancelled)
+    // ✅ Wrapper for API
+    @Transactional
+    public InventoryResponseDTO reduceInventory(int productId, int warehouseId, int quantity) {
+        return InventoryMapper.toResponse(
+                reduceInventoryAndReturn(productId, warehouseId, quantity)
+        );
+    }
+
+    // ✅ FIXED restore logic
     @Transactional
     public InventoryResponseDTO restoreInventory(int productId, int warehouseId, int quantity) {
-
-        log.info("Restoring inventory: productId={}, warehouseId={}, quantity={}",
-                productId, warehouseId, quantity);
 
         if (quantity <= 0) {
             throw new InvalidInventoryException("Quantity must be greater than 0");
@@ -165,14 +172,14 @@ public class InventoryService {
 
         Inventory inventory = getInventoryOrThrow(productId, warehouseId);
 
-        // Add stock back
         inventory.setQuantity(inventory.getQuantity() + quantity);
         inventory.setLastUpdated(LocalDateTime.now());
+        log.info("Saved inventory to DB: {}", inventory.getQuantity());
+        inventoryRepository.saveAndFlush(inventory);
 
-        inventoryRepository.save(inventory);
+        log.info("Inventory restored: productId={}, newQty={}",
+                productId, inventory.getQuantity());
 
-        log.info("Inventory restored successfully. New quantity={}", inventory.getQuantity());
-
-        return InventoryMapper.toResponseList(List.of(inventory)).get(0);
+        return InventoryMapper.toResponse(inventory);
     }
 }

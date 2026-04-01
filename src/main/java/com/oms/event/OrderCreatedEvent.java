@@ -38,5 +38,6 @@ public class OrderCreatedEvent {
         private Integer quantity;
         private BigDecimal price;
         private String warehouseName;
+        private Integer warehouseId;
     }
 }
