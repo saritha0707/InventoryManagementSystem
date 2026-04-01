@@ -4,6 +4,7 @@ import com.oms.dto.OrderRequestDTO;
 import com.oms.dto.OrderResponseDTO;
 import com.oms.dto.OrderStatusUpdateResponseDTO;
 import com.oms.entity.*;
+import com.oms.enums.OrderStatus;
 import com.oms.enums.PaymentMethod;
 import com.oms.event.OrderCreatedEvent;
 import com.oms.exception.CustomerOrGuestValidationException;
@@ -23,8 +24,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
-
-import static com.oms.entity.OrderStatus.*;
 
 @Service
 @Slf4j
@@ -60,7 +59,7 @@ public class OrderService {
         validateCustomerOrGuest(dto);
 
         Orders order = new Orders();
-        order.setStatus(CREATED.name());
+        order.setStatus(OrderStatus.CREATED.name());
 
         //  FIX 2: Customer vs Guest handling
         if (dto.getCustomerId() != null) {
@@ -205,10 +204,10 @@ public class OrderService {
         Orders order = orderRepository.findById(orderId).orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
 
         //  FIX 9: Prevent invalid state transition
-        if (CANCELLED.name().equals(order.getStatus())) {
+        if (OrderStatus.CANCELLED.name().equals(order.getStatus())) {
             throw new InvalidOrderStatusException("Order already cancelled");
         }
-        order.setStatus(CANCELLED.name());
+        order.setStatus(OrderStatus.CANCELLED.name());
         Orders updatedOrder = orderRepository.save(order);
         order.getOrderItems()
                 .stream()
