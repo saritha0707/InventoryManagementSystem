@@ -9,7 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
-import com.oms.enums.PaymentMethod;
+import com.oms.enums.*;
 
 @Data
 @NoArgsConstructor
