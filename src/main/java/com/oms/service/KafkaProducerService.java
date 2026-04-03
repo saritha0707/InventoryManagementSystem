@@ -1,8 +1,5 @@
 package com.oms.service;
 
-import com.oms.dto.InventoryRequestDTO;
-import com.oms.dto.OrderItemRequestDTO;
-import com.oms.dto.OrderRequestDTO;
 import com.oms.event.InventoryUpdatedEvent;
 import com.oms.event.OrderCreatedEvent;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,7 +12,7 @@ public class KafkaProducerService {
     private KafkaTemplate<String, Object> kafkaTemplate;
 
     private static final String Order_TOPIC = "order-events";
-    private static final String Inventory_TOPIC = "inventory-event";
+    private static final String Inventory_TOPIC = "inventory-events";
 
     public void publishInventoryUpdatedEvent(InventoryUpdatedEvent event) {
         kafkaTemplate.send(Inventory_TOPIC, event);

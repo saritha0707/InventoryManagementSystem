@@ -4,27 +4,23 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrderCreatedEvent {
+public class OrderCreatedEvent extends BaseEvent {
 
-    private String eventId;          // Unique ID for idempotency
-    private Long orderId;
     private Integer customerId;
     private String customerName;
     private String guestName;
     private String guestEmail;
     private String guestPhone;
     private BigDecimal totalAmount;
-    private String status;
-    private LocalDateTime timestamp;
     private List<OrderItemEvent> items;
 
     @Data
@@ -39,5 +35,10 @@ public class OrderCreatedEvent {
         private BigDecimal price;
         private String warehouseName;
         private Integer warehouseId;
+    }
+
+    @Override
+    public String getEventType() {
+        return "ORDER_CREATED";
     }
 }

@@ -4,23 +4,23 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDateTime;
+import lombok.experimental.SuperBuilder;
 
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class InventoryUpdatedEvent {
+public class InventoryUpdatedEvent extends BaseEvent {
 
-    private String eventId;
-    private Long orderId;
     private Integer productId;
     private String productName;
     private Integer warehouseId;
     private String warehouseName;
     private Integer quantityReduced;
     private Integer remainingStock;
-    private LocalDateTime timestamp;
-    private String status;  // SUCCESS, FAILED, INSUFFICIENT_STOCK
+
+    @Override
+    public String getEventType() {
+        return "INVENTORY_UPDATED";
+    }
 }

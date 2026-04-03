@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oms.entity.EventLog;
 import com.oms.entity.Inventory;
 import com.oms.entity.Warehouse;
+import com.oms.enums.OrderStatus;
+import com.oms.event.BaseEvent;
 import com.oms.event.InventoryUpdatedEvent;
 import com.oms.event.OrderCreatedEvent;
 import com.oms.exception.InsufficientStockException;
@@ -26,15 +28,18 @@ import java.util.UUID;
 public class KafkaConsumerService {
 
     private final InventoryService inventoryService;
+    private final OrderService orderService;
     private final EventLogRepository eventLogRepository;
     private final KafkaProducerService kafkaProducerService;
     private final ObjectMapper objectMapper;
 
     public KafkaConsumerService(InventoryService inventoryService,
+                                OrderService orderService,
                                 EventLogRepository eventLogRepository,
                                 KafkaProducerService kafkaProducerService,
                                 ObjectMapper objectMapper) {
         this.inventoryService = inventoryService;
+        this.orderService = orderService;
         this.eventLogRepository = eventLogRepository;
         this.kafkaProducerService = kafkaProducerService;
         this.objectMapper = objectMapper;
@@ -62,20 +67,12 @@ public class KafkaConsumerService {
                 event.getEventId(), event.getOrderId());
 
         try {
-            // ✅ Validation
-            if (event.getEventId() == null || event.getEventId().isBlank()
-                    || event.getOrderId() == null
-                    || event.getItems() == null || event.getItems().isEmpty()) {
-
+            if(event.getItems() == null || event.getItems().isEmpty()) {
                 log.error("Invalid event received");
                 acknowledgment.acknowledge();
                 return;
             }
-
-            // ✅ Idempotency
-            if (isEventAlreadyProcessed(event.getEventId())) {
-                log.warn("Duplicate event: {}", event.getEventId());
-                acknowledgment.acknowledge();
+            if (isInvalidOrDuplicate(event, acknowledgment)) {
                 return;
             }
 
@@ -167,18 +164,18 @@ public class KafkaConsumerService {
                 .status(status)
                 .build();
 
-        kafkaProducerService.publishInventoryUpdatedEvent(event);
+       kafkaProducerService.publishInventoryUpdatedEvent(event);
     }
 
     private boolean isEventAlreadyProcessed(String eventId) {
         return eventLogRepository.existsByEventId(eventId);
     }
 
-    private EventLog createEventLog(OrderCreatedEvent event, String status) {
+    private EventLog createEventLog(BaseEvent event, String status) {
         try {
             EventLog eventLog = new EventLog();
             eventLog.setEventId(event.getEventId());
-            eventLog.setEventType("ORDER_CREATED");
+            eventLog.setEventType(event.getEventType());
             eventLog.setOrderId(event.getOrderId());
             eventLog.setStatus(status);
             eventLog.setEventPayload(objectMapper.writeValueAsString(event));
@@ -197,5 +194,76 @@ public class KafkaConsumerService {
             eventLog.setProcessedAt(LocalDateTime.now());
             eventLogRepository.save(eventLog);
         });
+    }
+    private boolean isInvalidOrDuplicate(BaseEvent event, Acknowledgment acknowledgment) {
+
+        if (event.getEventId() == null || event.getEventId().isBlank()
+                || event.getOrderId() == null) {
+
+            log.error("Invalid event received");
+            acknowledgment.acknowledge();
+            return true;
+        }
+
+        if (isEventAlreadyProcessed(event.getEventId())) {
+            log.warn("Duplicate event: {}", event.getEventId());
+            acknowledgment.acknowledge();
+            return true;
+        }
+
+        return false;
+    }
+
+    @KafkaListener(
+            topics = "${kafka.topics.inventory-events:inventory-events}",
+            groupId = "${kafka.consumer.group-id:order-group}",
+            containerFactory = "kafkaListenerContainerFactory",
+            properties = {
+                    "spring.json.value.default.type=com.oms.event.InventoryUpdatedEvent"
+            }
+    )
+    @Retryable(
+            retryFor = {Exception.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 2000, multiplier = 2)
+    )
+    public void consumeInventoryEvent(@Payload InventoryUpdatedEvent event,
+                                      @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+                                      @Header(KafkaHeaders.OFFSET) long offset,
+                                      Acknowledgment acknowledgment)
+    {
+        log.info("Received InventoryUpdatedEvent: eventId={}, orderId={} , status={}",
+                event.getEventId(), event.getOrderId(), event.getStatus());
+        boolean hasFailures = false;
+        EventLog eventLog = createEventLog(event, "PROCESSING");
+        try {
+            if (isInvalidOrDuplicate(event, acknowledgment)) {
+                return;
+            }
+            if(event.getStatus().equals("SUCCESS")) {
+                Integer orderId = Math.toIntExact(event.getOrderId());
+                orderService.updateOrderStatus(orderId, OrderStatus.PROCESSED.name());
+            }
+            else{
+                Integer orderId = Math.toIntExact(event.getOrderId());
+                orderService.updateOrderStatus(orderId, OrderStatus.FAILED.name());
+                hasFailures = true;
+            }
+
+            // ✅ Update log
+            eventLog.setStatus(hasFailures ? "PARTIAL" : "COMPLETED");
+            eventLog.setProcessedAt(LocalDateTime.now());
+            eventLogRepository.save(eventLog);
+
+            acknowledgment.acknowledge();
+        }catch (Exception e) {
+
+            log.error("Kafka processing failed: {}", e.getMessage(), e);
+
+            markEventAsFailed(event.getEventId(), e.getMessage());
+
+            throw new RuntimeException("Kafka processing failed", e);
+        }
+
     }
 }

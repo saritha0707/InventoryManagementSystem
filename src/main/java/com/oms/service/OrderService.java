@@ -128,6 +128,7 @@ public class OrderService {
         //  FIX 6: Kafka AFTER DB commit (basic safe approach)
         //Update Inventory
         sendKafkaEventSafely(savedOrder);
+
         OrderResponseDTO response = orderMapper.mapToResponseDTO(savedOrder);
         return new ResponseEntity<>(response, HttpStatus.CREATED).getBody();
     }
