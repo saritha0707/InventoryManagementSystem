@@ -6,6 +6,7 @@ import com.oms.dto.ProductResponseDTO;
 import com.oms.entity.Product;
 import com.oms.exception.BadRequestException;
 import com.oms.service.ProductService;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;

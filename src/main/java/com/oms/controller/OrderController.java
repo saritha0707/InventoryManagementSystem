@@ -37,7 +37,7 @@ public class OrderController {
 
     @PutMapping("/status/update")
     public OrderStatusUpdateResponseDTO updateOrderStatus(
-            @RequestBody OrderStatusUpdateRequestDTO request) {
+            @Valid @RequestBody OrderStatusUpdateRequestDTO request) {
         return orderService.updateOrderStatus(request.getOrderId(),request.getOrder_status());
     }
 }

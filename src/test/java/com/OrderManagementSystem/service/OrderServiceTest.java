@@ -78,14 +78,17 @@ public class OrderServiceTest {
     @Test //Success -Customer order
     void shouldCreateOrderSuccessfully_withCustomer() {
 
+        //mock response
         when(customerRepository.findById(1)).thenReturn(Optional.of(customer));
         when(productRepository.findById(1)).thenReturn(Optional.of(product));
         when(warehouseRepository.findById(1)).thenReturn(Optional.of(warehouse));
         when(orderRepository.save(any())).thenAnswer(i -> i.getArguments()[0]);
         when(orderMapper.mapToResponseDTO(any())).thenReturn(new OrderResponseDTO());
 
+        //Service Call
         OrderResponseDTO response = orderService.createOrder(requestDTO);
 
+        //Assertion
         assertNotNull(response);
         verify(orderRepository).save(any());
         verify(producerService).publishOrderCreatedEvent(any());

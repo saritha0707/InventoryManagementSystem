@@ -1,5 +1,6 @@
 package com.oms.service;
 
+import com.oms.dto.InventoryResponseDTO;
 import com.oms.dto.OrderRequestDTO;
 import com.oms.dto.OrderResponseDTO;
 import com.oms.dto.OrderStatusUpdateResponseDTO;
@@ -8,6 +9,7 @@ import com.oms.enums.OrderStatus;
 import com.oms.enums.PaymentMethod;
 import com.oms.event.OrderCreatedEvent;
 import com.oms.exception.CustomerOrGuestValidationException;
+import com.oms.exception.InsufficientStockException;
 import com.oms.exception.InvalidOrderStatusException;
 import com.oms.exception.ResourceNotFoundException;
 import com.oms.mapper.OrderMapper;
@@ -78,6 +80,18 @@ public class OrderService {
            //  producerService.sendOrderItemDetails(dto);
 
             //get details from inventory service and then call below lines
+            if(!inventoryService.isProductAvailable(itemDTO.getProductId(), itemDTO.getWarehouseId(),itemDTO.getQuantity())) {
+                List<InventoryResponseDTO> response = inventoryService.getProductAvailability(itemDTO.getProductId());
+                Integer quantity = response.stream()
+                        .filter(i -> i.getWarehouseId() == itemDTO.getWarehouseId())
+                        .map(InventoryResponseDTO::getQuantity)
+                        .findFirst()
+                        .orElse(0);   // default if not found
+                throw new InsufficientStockException(itemDTO.getProductId(),
+                        quantity,
+                        itemDTO.getQuantity());
+            }
+          //orElseThrow(() -> new ResourceNotFoundException("Product not found: " + itemDTO.getProductId()))
             Product product = productRepository.findById(itemDTO.getProductId()).orElseThrow(() -> new ResourceNotFoundException("Product not found: " + itemDTO.getProductId()));
 
             Warehouse warehouse = warehouseRepository.findById(itemDTO.getWarehouseId()).orElseThrow(() -> new ResourceNotFoundException("Warehouse not found: " + itemDTO.getWarehouseId()));
