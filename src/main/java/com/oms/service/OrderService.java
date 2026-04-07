@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -60,6 +61,9 @@ public class OrderService {
 
         //  FIX 1: Strong validation
         validateCustomerOrGuest(dto);
+
+        // ✅ NEW FIX: Validate inventory availability BEFORE creating order
+        validateInventoryAvailability(dto);
 
         Orders order = new Orders();
         order.setStatus(OrderStatus.CREATED.name());
@@ -202,6 +206,48 @@ public class OrderService {
         }
     }
 
+    // ✅ NEW: Validate inventory availability before order creation
+    private void validateInventoryAvailability(OrderRequestDTO dto) {
+        if (dto.getItems() == null || dto.getItems().isEmpty()) {
+            throw new IllegalArgumentException("Order must have at least one item");
+        }
+
+        for (var itemDTO : dto.getItems()) {
+            // Validate product exists
+            Product product = productRepository.findById(itemDTO.getProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Product not found: " + itemDTO.getProductId()));
+
+            // Validate warehouse exists
+            Warehouse warehouse = warehouseRepository.findById(itemDTO.getWarehouseId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Warehouse not found: " + itemDTO.getWarehouseId()));
+
+            // ✅ NEW: Validate inventory exists and has sufficient quantity
+            var inventory = inventoryService.getInventoryOrThrow(itemDTO.getProductId(), itemDTO.getWarehouseId());
+
+            if (inventory.getQuantity() <= 0) {
+                throw new InsufficientStockException(
+                        itemDTO.getProductId(),
+                        inventory.getQuantity(),
+                        itemDTO.getQuantity()
+                );
+            }
+
+            if (inventory.getQuantity() < itemDTO.getQuantity()) {
+                throw new InsufficientStockException(
+                        itemDTO.getProductId(),
+                        inventory.getQuantity(),
+                        itemDTO.getQuantity()
+                );
+            }
+
+            log.info("Inventory validated: productId={}, warehouseId={}, available={}, requested={}",
+                    itemDTO.getProductId(), itemDTO.getWarehouseId(),
+                    inventory.getQuantity(), itemDTO.getQuantity());
+        }
+    }
+
     // Get All Orders
     public List<OrderResponseDTO> getAllOrders() {
         return orderRepository.findAll().stream().map(orderMapper::mapToResponseDTO).collect(Collectors.toList());
@@ -225,13 +271,21 @@ public class OrderService {
         }
         order.setStatus(OrderStatus.CANCELLED.name());
         Orders updatedOrder = orderRepository.save(order);
+
+        // ✅ Restore inventory for each item (gracefully handle missing inventory)
         order.getOrderItems()
                 .stream()
-                .forEach(item -> inventoryService.restoreInventory(
-                        item.getProduct().getProductId(),
-                        item.getWarehouse().getWarehouseId(),
-                        item.getQuantity()
-                ));
+                .forEach(item -> {
+                    boolean restored = inventoryService.restoreInventoryIfExists(
+                            item.getProduct().getProductId(),
+                            item.getWarehouse().getWarehouseId(),
+                            item.getQuantity()
+                    );
+                    if (!restored) {
+                        log.warn("Could not restore inventory for cancelled order {}: productId={}, warehouseId={}",
+                                orderId, item.getProduct().getProductId(), item.getWarehouse().getWarehouseId());
+                    }
+                });
         List<Payment> payments = paymentRepository.findByOrder(updatedOrder);
 
         if (!payments.isEmpty()) {
@@ -282,6 +336,7 @@ public class OrderService {
 
                 throw new InvalidOrderStatusException(
                         "Order cannot be CANCELLED when status is " + currentStatus
+
                 );
             }
 
@@ -312,7 +367,62 @@ public class OrderService {
         response.setId(orderId);
         Optional<Orders> orders = orderRepository.findById(orderId);
         response.setStatus(orders.get().getStatus());
+
         return response;
+    }
+
+    // ✅ New method: Check and update status conditionally (for Kafka consumer)
+    @Transactional
+    public boolean updateOrderStatusIfNotAlready(int orderId, OrderStatus targetStatus) {
+        Orders order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        // If already in target status, return false (no update needed)
+        if (targetStatus.name().equals(order.getStatus())) {
+            return false;
+        }
+
+        // Update the status
+        OrderStatusUpdateResponseDTO result = updateOrderStatus(orderId, targetStatus.name());
+        return result != null;
+    }
+
+    // ✅ NEW: Update order items with inventory processing results
+    @Transactional
+    public void updateOrderItemsWithInventoryResults(int orderId, List<com.oms.event.InventoryUpdatedEvent.ItemResult> itemResults) {
+        Orders order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+
+        if (itemResults == null || itemResults.isEmpty()) {
+            log.warn("No item results provided for orderId={}", orderId);
+            return;
+        }
+
+        // ✅ Map item results by productId for quick lookup
+        Map<Integer, com.oms.event.InventoryUpdatedEvent.ItemResult> resultsByProductId = itemResults.stream()
+                .collect(Collectors.toMap(
+                        com.oms.event.InventoryUpdatedEvent.ItemResult::getProductId,
+                        result -> result,
+                        (existing, replacement) -> existing
+                ));
+
+        // ✅ Update each order item with its inventory status
+        for (OrderItem item : order.getOrderItems()) {
+            com.oms.event.InventoryUpdatedEvent.ItemResult result = resultsByProductId.get(item.getProduct().getProductId());
+
+            if (result != null) {
+                item.setInventoryStatus(result.getStatus());
+                item.setAvailableQuantity(result.getAvailableQuantity());
+                log.info("Updated orderItem {} with status={}, availableQty={}",
+                        item.getOrderItemId(), result.getStatus(), result.getAvailableQuantity());
+            } else {
+                log.warn("No inventory result found for productId={} in order {}",
+                        item.getProduct().getProductId(), orderId);
+            }
+        }
+
+        // ✅ Save the updated items
+        orderRepository.save(order);
     }
 
     private boolean isValidTransition(OrderStatus current, OrderStatus next) {
@@ -320,7 +430,13 @@ public class OrderService {
         switch (current) {
 
             case CREATED:
+                return next == OrderStatus.PARTIAL ||
+                        next == OrderStatus.PROCESSED ||
+                        next == OrderStatus.CANCELLED;
+
+            case PARTIAL:
                 return next == OrderStatus.PROCESSED ||
+                        next == OrderStatus.SHIPPED ||
                         next == OrderStatus.CANCELLED;
 
             case PROCESSED:
@@ -338,3 +454,4 @@ public class OrderService {
         }
     }
 }
+

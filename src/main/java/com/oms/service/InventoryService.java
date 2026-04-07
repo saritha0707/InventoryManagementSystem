@@ -36,8 +36,8 @@ public class InventoryService {
         this.warehouseRepository = warehouseRepository;
     }
 
-    // ✅ Common Method (Avoid duplication)
-    private Inventory getInventoryOrThrow(int productId, int warehouseId) {
+    // ✅ Common Method (Avoid duplication) - Made public for validation in OrderService
+    public Inventory getInventoryOrThrow(int productId, int warehouseId) {
 
         return inventoryRepository
                 .findByProduct_ProductIdAndWarehouse_WarehouseId(productId, warehouseId)
@@ -179,7 +179,45 @@ public class InventoryService {
 
         log.info("Inventory restored: productId={}, newQty={}",
                 productId, inventory.getQuantity());
-
         return InventoryMapper.toResponse(inventory);
+    }
+
+    // ✅ NEW: Safe inventory restoration (doesn't throw exception if inventory doesn't exist)
+    @Transactional
+    public boolean restoreInventoryIfExists(int productId, int warehouseId, int quantity) {
+        try {
+            if (quantity <= 0) {
+                log.warn("Skipping inventory restoration: invalid quantity={} for productId={}, warehouseId={}",
+                        quantity, productId, warehouseId);
+                return false;
+            }
+
+            // Try to find inventory
+            Inventory inventory = inventoryRepository
+                    .findByProduct_ProductIdAndWarehouse_WarehouseId(productId, warehouseId)
+                    .orElse(null);
+
+            if (inventory == null) {
+                // Inventory doesn't exist - log warning but don't fail
+                log.warn("Inventory not found for restoration: productId={}, warehouseId={}. " +
+                        "This can happen if inventory was never reduced for this item.",
+                        productId, warehouseId);
+                return false;
+            }
+
+            // Restore the inventory
+            inventory.setQuantity(inventory.getQuantity() + quantity);
+            inventory.setLastUpdated(LocalDateTime.now());
+            inventoryRepository.saveAndFlush(inventory);
+
+            log.info("Inventory restored successfully: productId={}, warehouseId={}, newQty={}",
+                    productId, warehouseId, inventory.getQuantity());
+            return true;
+
+        } catch (Exception e) {
+            log.error("Unexpected error during inventory restoration: productId={}, warehouseId={}, error={}",
+                    productId, warehouseId, e.getMessage());
+            return false;
+        }
     }
 }

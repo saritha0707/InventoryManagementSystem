@@ -28,6 +28,14 @@ public class OrderItem {
     @Column(nullable = false)
     private BigDecimal price;
 
+    // ✅ Add inventory status: SUCCESS, INSUFFICIENT_STOCK, PENDING
+    @Column(nullable = true)
+    private String inventoryStatus;
+
+    // ✅ Add available quantity for reference
+    @Column(nullable = true)
+    private Integer availableQuantity;
+
     @ManyToOne
     @JoinColumn(name = "order_id", nullable = false)
     private Orders order;
