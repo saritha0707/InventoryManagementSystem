@@ -1,5 +1,6 @@
 package com.oms.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -12,7 +13,10 @@ public class OrderItemResponseDTO {
     private int quantity;
     private BigDecimal price;
 
+    //To exclude below fields when the value is null
     // ✅ NEW: Inventory status fields
-    private String inventoryStatus;      // SUCCESS, INSUFFICIENT_STOCK, PENDING
-    private Integer availableQuantity;   // Available stock quantity
+   // @JsonInclude(JsonInclude.Include.NON_NULL)
+   // private String inventoryStatus;   // SUCCESS, INSUFFICIENT_STOCK, PENDING
+   // @JsonInclude(JsonInclude.Include.NON_NULL)
+   // private Integer availableQuantity;   // Available stock quantity
 }

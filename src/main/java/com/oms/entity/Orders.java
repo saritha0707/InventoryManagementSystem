@@ -4,6 +4,8 @@ import com.oms.entity.Customer;
 import com.oms.entity.OrderItem;
 import com.oms.entity.Payment;
 import jakarta.persistence.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -40,9 +42,11 @@ public class Orders {
     private Customer customer;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Valid
     private List<OrderItem> orderItems;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    @NotNull(message = "Invalid value for paymentMethod. Allowed values: CASH_ON_DELIVERY, ONLINE")
     private List<Payment> payments;
 
 }

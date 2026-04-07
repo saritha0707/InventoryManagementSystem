@@ -8,10 +8,7 @@ import com.oms.entity.*;
 import com.oms.enums.OrderStatus;
 import com.oms.enums.PaymentMethod;
 import com.oms.event.OrderCreatedEvent;
-import com.oms.exception.CustomerOrGuestValidationException;
-import com.oms.exception.InsufficientStockException;
-import com.oms.exception.InvalidOrderStatusException;
-import com.oms.exception.ResourceNotFoundException;
+import com.oms.exception.*;
 import com.oms.mapper.OrderMapper;
 import com.oms.repository.*;
 import jakarta.transaction.Transactional;
@@ -57,6 +54,11 @@ public class OrderService {
     @Transactional
     public OrderResponseDTO createOrder(OrderRequestDTO dto) {
 
+        if (dto.getPaymentMethod() == PaymentMethod.REFUND) {
+            throw new InvalidPaymentMethodException(
+                    "Invalid value for paymentMethod. Allowed values: CASH_ON_DELIVERY, ONLINE"
+            );
+        }
         log.info("Creating order with {} items", dto.getItems().size());
 
         //  FIX 1: Strong validation
@@ -81,16 +83,14 @@ public class OrderService {
         //  FIX 3: Map items with warehouse (ER aligned)
         List<OrderItem> orderItems = dto.getItems().stream().map(itemDTO -> {
 
-           //  producerService.sendOrderItemDetails(dto);
-
+            List<InventoryResponseDTO> response = inventoryService.getProductAvailability(itemDTO.getProductId());
+            Integer quantity = response.stream()
+                    .filter(i -> i.getWarehouseId() == itemDTO.getWarehouseId())
+                    .map(InventoryResponseDTO::getQuantity)
+                    .findFirst()
+                    .orElse(0);   // default if not found
             //get details from inventory service and then call below lines
             if(!inventoryService.isProductAvailable(itemDTO.getProductId(), itemDTO.getWarehouseId(),itemDTO.getQuantity())) {
-                List<InventoryResponseDTO> response = inventoryService.getProductAvailability(itemDTO.getProductId());
-                Integer quantity = response.stream()
-                        .filter(i -> i.getWarehouseId() == itemDTO.getWarehouseId())
-                        .map(InventoryResponseDTO::getQuantity)
-                        .findFirst()
-                        .orElse(0);   // default if not found
                 throw new InsufficientStockException(itemDTO.getProductId(),
                         quantity,
                         itemDTO.getQuantity());
@@ -105,6 +105,8 @@ public class OrderService {
             item.setWarehouse(warehouse);
             item.setQuantity(itemDTO.getQuantity());
             item.setPrice(product.getPrice());
+            item.setInventoryStatus("Available");
+            item.setAvailableQuantity(quantity);
             item.setOrder(order);
              //We have already invoked this method during Kafka processing, so it has been commented out here to prevent multiple reductions of the product.
             //below method is trying to reduce inventory for items

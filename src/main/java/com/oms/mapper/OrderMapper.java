@@ -31,8 +31,8 @@ public class OrderMapper {
             itemDTO.setQuantity(item.getQuantity());
             itemDTO.setPrice(item.getPrice());
             // ✅ NEW: Map inventory status fields
-            itemDTO.setInventoryStatus(item.getInventoryStatus());
-            itemDTO.setAvailableQuantity(item.getAvailableQuantity());
+           // itemDTO.setInventoryStatus(item.getInventoryStatus());
+           // itemDTO.setAvailableQuantity(item.getAvailableQuantity());
             return itemDTO;
         }).collect(Collectors.toList());
 

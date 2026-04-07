@@ -3,10 +3,16 @@ server:
     context-path: /oms
 
 spring:
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+
   datasource:
     url: jdbc:mysql://localhost:3306/ordermanagementsystem
     username: root
-    password: root
+    password: mysql070711
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:

@@ -5,6 +5,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -52,7 +53,17 @@ public class GlobalExceptionHandler {
         );
         return new ResponseEntity<>(error, HttpStatus.METHOD_NOT_ALLOWED);
     }
+    @ExceptionHandler(org.springframework.web.servlet.NoHandlerFoundException.class)
+    public ResponseEntity<?> handleNotFound(NoHandlerFoundException ex) {
+        String message = "API end point not found";
+        ErrorResponse error = new ErrorResponse(
+                LocalDateTime.now(),
+                "Not Found",
+                message
 
+        );
+        return new ResponseEntity<>(error, HttpStatus.NOT_FOUND);
+    }
     //  Handle Validation Errors (@Valid DTO)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationException(MethodArgumentNotValidException ex) {
@@ -93,8 +104,12 @@ public class GlobalExceptionHandler {
 
             Class<?> targetType = ife.getTargetType();
 
+            if(fieldName.equals("paymentMethod"))
+            {
+                message = "paymentMethod accepts only CASH_ON_DELIVERY or ONLINE";
+            }
             // 🔹 Enum case
-            if (targetType.isEnum()) {
+            else if (targetType.isEnum()) {
                 message = "Invalid value '" + ife.getValue() +
                         "' for field '" + fieldName +
                         "'. Allowed values: " +
@@ -163,6 +178,17 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(error,HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(InvalidPaymentMethodException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidStatus(InvalidPaymentMethodException ex) {
+
+        ErrorResponse error = new ErrorResponse(
+                LocalDateTime.now(),
+                "Bad Request",
+                ex.getMessage()
+        );
+
+        return new ResponseEntity<>(error,HttpStatus.BAD_REQUEST);
+    }
     @ExceptionHandler(InsufficientStockException.class)
     public ResponseEntity<ErrorResponse> handleInsufficientStock(InsufficientStockException ex) {
 
