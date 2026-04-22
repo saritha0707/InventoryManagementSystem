@@ -11,8 +11,8 @@ public class SwaggerConfig {
     @Bean
     public OpenAPI customOpenAPI(){
         return new OpenAPI().info(new Info()
-                .title("Order Management API")
+                .title("Inventory Management API")
                 .version("1.0")
-                .description("API Documentation for OMS project"));
+                .description("API Documentation for Inventory project"));
     }
 }

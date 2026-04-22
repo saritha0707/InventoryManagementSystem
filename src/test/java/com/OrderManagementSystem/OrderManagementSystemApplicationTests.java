@@ -1,11 +1,11 @@
 package com.OrderManagementSystem;
 
-import com.oms.OrderManagementSystemApplication;
+import com.oms.InventoryManagementSystemApplication;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 
-@SpringBootTest(classes = OrderManagementSystemApplication.class)
+@SpringBootTest(classes = InventoryManagementSystemApplication.class)
 class OrderManagementSystemApplicationTests {
 
     @Test

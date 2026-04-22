@@ -4,7 +4,6 @@ import com.oms.dto.InventoryRequestDTO;
 import com.oms.dto.InventoryResponseDTO;
 import com.oms.service.InventoryService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 

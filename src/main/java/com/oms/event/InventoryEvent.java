@@ -1,5 +1,6 @@
 package com.oms.event;
 
+import com.oms.enums.InventoryStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,12 +13,10 @@ import java.util.List;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class InventoryUpdatedEvent extends BaseEvent {
+public class InventoryEvent extends BaseEvent {
 
     private Integer productId;
     private Integer warehouseId;
-    private Integer quantityReduced;
-    private Integer remainingStock;
 
     // ✅ NEW: Consolidated item results (array of per-item inventory statuses)
     private List<ItemResult> itemResults;
@@ -41,7 +40,7 @@ public class InventoryUpdatedEvent extends BaseEvent {
 
     @Override
     public String getEventType() {
-        return "INVENTORY_UPDATED";
+        return InventoryStatus.INVENTORY_UPDATED.name();
     }
 }
 

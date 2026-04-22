@@ -3,10 +3,8 @@ package com.oms.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oms.entity.EventLog;
 import com.oms.entity.Inventory;
-import com.oms.enums.OrderStatus;
-import com.oms.event.BaseEvent;
-import com.oms.event.InventoryUpdatedEvent;
-import com.oms.event.OrderCreatedEvent;
+import com.oms.enums.InventoryStatus;
+import com.oms.event.*;
 import com.oms.exception.InsufficientStockException;
 import com.oms.repository.EventLogRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -22,29 +20,102 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Service
 @Slf4j
 public class KafkaConsumerService {
 
     private final InventoryService inventoryService;
-    private final OrderService orderService;
     private final EventLogRepository eventLogRepository;
     private final KafkaProducerService kafkaProducerService;
     private final ObjectMapper objectMapper;
 
     public KafkaConsumerService(InventoryService inventoryService,
-                                OrderService orderService,
                                 EventLogRepository eventLogRepository,
                                 KafkaProducerService kafkaProducerService,
                                 ObjectMapper objectMapper) {
         this.inventoryService = inventoryService;
-        this.orderService = orderService;
         this.eventLogRepository = eventLogRepository;
         this.kafkaProducerService = kafkaProducerService;
         this.objectMapper = objectMapper;
     }
+
+    //Consumes InventoryCheckEvent details and process inventory details and call productAvailablity service call and publish message to another kafka topic
+    /**
+     * ✅ Consumes InventoryCheckEvent, processes inventory for all items,
+     * and publishes product availability message to kafka topic
+     */
+    @KafkaListener(
+            topics = "${kafka.topics.inventory-check-request:inventory-check-request}",
+            groupId = "${kafka.consumer.group-id:order-group}",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
+    @Retryable(
+            retryFor = {Exception.class},
+            noRetryFor = {InsufficientStockException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 2000, multiplier = 2)
+    )
+    public void consumeInventoryCreatedEvent(
+            @Payload InventoryCheckEvent event,
+            @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+            @Header(KafkaHeaders.OFFSET) long offset,
+            Acknowledgment acknowledgment
+    ) {
+
+        log.info("Received Inventory Check for ProductId: eventId={}",
+                event.getEventId());
+
+        try {
+            if(event.getOrderItems() == null || event.getOrderItems().isEmpty()) {
+                log.error("Invalid event received - no items");
+                acknowledgment.acknowledge();
+                return;
+            }
+            
+            if (isInvalidOrDuplicate(event, acknowledgment)) {
+                return;
+            }
+
+            // ✅ Create event log
+            EventLog eventLog = createEventLog(event, "PROCESSING");
+
+            // ✅ Track per-item results
+            List<InventoryEvent.ItemResult> itemResults = new ArrayList<>();
+            boolean hasFailures = false;
+            boolean hasSuccesses = true;
+           //call this method checkAvailability from service and update eventlog with success status
+           // ✅ Process items
+           InventoryCheckResponseEvent responseEvent = inventoryService.checkAvailability(event);
+           hasFailures = responseEvent.getOrderItemCheckResponse().stream().anyMatch(item -> item.getStatus().equalsIgnoreCase(InventoryStatus.INSUFFICIENT_STOCK.name()));
+           hasSuccesses = !hasFailures;
+           //publish this response in topic
+            kafkaProducerService.publishInventoryCheckResponse(responseEvent);
+            // ✅ Determine overall status based on results
+            String overallStatus = "SUCCESS";
+            if (hasFailures && hasSuccesses) {
+                overallStatus = "PARTIAL";
+            } else if (hasFailures && !hasSuccesses) {
+                overallStatus = "FAILED";
+            }
+
+            // ✅ Update event log with overall status
+            eventLog.setStatus(overallStatus);
+            eventLog.setProcessedAt(LocalDateTime.now());
+            eventLogRepository.save(eventLog);
+
+            acknowledgment.acknowledge();
+
+        } catch (Exception e) {
+
+            log.error("Kafka processing failed: {}", e.getMessage(), e);
+
+            markEventAsFailed(event.getEventId(), e.getMessage());
+
+            throw new RuntimeException("Kafka processing failed", e);
+        }
+    }
+
 
     /**
      * ✅ UPDATED: Consumes OrderCreatedEvent, processes inventory for all items,
@@ -77,7 +148,7 @@ public class KafkaConsumerService {
                 acknowledgment.acknowledge();
                 return;
             }
-            
+
             if (isInvalidOrDuplicate(event, acknowledgment)) {
                 return;
             }
@@ -97,7 +168,6 @@ public class KafkaConsumerService {
                     log.error("Invalid item: productId or warehouseId is null");
                     itemResults.add(InventoryUpdatedEvent.ItemResult.builder()
                             .productId(item.getProductId())
-                            .productName(item.getProductName())
                             .warehouseId(item.getWarehouseId())
                             .requestedQuantity(item.getQuantity())
                             .availableQuantity(0)
@@ -111,7 +181,6 @@ public class KafkaConsumerService {
                     log.error("Invalid quantity for productId={}", item.getProductId());
                     itemResults.add(InventoryUpdatedEvent.ItemResult.builder()
                             .productId(item.getProductId())
-                            .productName(item.getProductName())
                             .warehouseId(item.getWarehouseId())
                             .requestedQuantity(item.getQuantity())
                             .availableQuantity(0)
@@ -132,14 +201,13 @@ public class KafkaConsumerService {
                     // ✅ Add success result
                     itemResults.add(InventoryUpdatedEvent.ItemResult.builder()
                             .productId(item.getProductId())
-                            .productName(item.getProductName())
                             .warehouseId(inventory.getWarehouse().getWarehouseId())
                             .warehouseName(inventory.getWarehouse().getWarehouseName())
                             .requestedQuantity(item.getQuantity())
                             .availableQuantity(inventory.getQuantity())
                             .status("SUCCESS")
                             .build());
-                    
+
                     hasSuccesses = true;
                     log.info("Successfully reduced inventory for productId={}", item.getProductId());
 
@@ -153,7 +221,6 @@ public class KafkaConsumerService {
                     // ✅ Add insufficient stock result
                     itemResults.add(InventoryUpdatedEvent.ItemResult.builder()
                             .productId(item.getProductId())
-                            .productName(item.getProductName())
                             .warehouseId(item.getWarehouseId())
                             .requestedQuantity(item.getQuantity())
                             .availableQuantity(e.getAvailableQuantity())
@@ -179,7 +246,7 @@ public class KafkaConsumerService {
                     event.getOrderId(), overallStatus, hasSuccesses, hasFailures);
 
             // ✅ Publish consolidated inventory updated event
-            publishConsolidatedInventoryUpdatedEvent(event, itemResults, overallStatus);
+         //   publishConsolidatedInventoryUpdatedEvent(event, itemResults, overallStatus);
 
             acknowledgment.acknowledge();
 
@@ -189,134 +256,6 @@ public class KafkaConsumerService {
 
             markEventAsFailed(event.getEventId(), e.getMessage());
 
-            throw new RuntimeException("Kafka processing failed", e);
-        }
-    }
-
-    /**
-     * ✅ NEW: Publish consolidated event with all item results
-     */
-    private void publishConsolidatedInventoryUpdatedEvent(OrderCreatedEvent orderEvent,
-                                                          List<InventoryUpdatedEvent.ItemResult> itemResults,
-                                                          String overallStatus) {
-
-        InventoryUpdatedEvent event = InventoryUpdatedEvent.builder()
-                .eventId(UUID.randomUUID().toString())
-                .orderId(orderEvent.getOrderId())
-                .timestamp(LocalDateTime.now())
-                .itemResults(itemResults)
-                .overallStatus(overallStatus)
-                .status(overallStatus)
-                .build();
-
-        kafkaProducerService.publishInventoryUpdatedEvent(event);
-
-        log.info("Published consolidated InventoryUpdatedEvent: orderId={}, overallStatus={}, itemCount={}",
-                orderEvent.getOrderId(), overallStatus, itemResults.size());
-    }
-
-    /**
-     * ✅ UPDATED: Consumes InventoryUpdatedEvent with consolidated item results
-     * Updates order status to PARTIAL if ANY item has insufficient stock
-     */
-    @KafkaListener(
-            topics = "${kafka.topics.inventory-events:inventory-events}",
-            groupId = "${kafka.consumer.group-id:order-group}-inventory",
-            containerFactory = "kafkaListenerContainerFactory",
-            properties = {
-                    "spring.json.value.default.type=com.oms.event.InventoryUpdatedEvent"
-            }
-    )
-    @Retryable(
-            retryFor = {Exception.class},
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 2000, multiplier = 2)
-    )
-    public void consumeInventoryEvent(@Payload InventoryUpdatedEvent event,
-                                      @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
-                                      @Header(KafkaHeaders.OFFSET) long offset,
-                                      Acknowledgment acknowledgment)
-    {
-        log.info("Received InventoryUpdatedEvent: eventId={}, orderId={}, overallStatus={}",
-                event.getEventId(), event.getOrderId(), event.getOverallStatus());
-        
-        EventLog eventLog = createEventLog(event, "PROCESSING");
-        
-        try {
-            if (isInvalidOrDuplicate(event, acknowledgment)) {
-                return;
-            }
-
-            Integer orderId = Math.toIntExact(event.getOrderId());
-
-            // ✅ Determine order status based on overall inventory result
-            OrderStatus targetStatus;
-            String logStatus;
-
-            if (event.getOverallStatus() != null) {
-                // ✅ New consolidated format
-                switch (event.getOverallStatus()) {
-                    case "SUCCESS":
-                        targetStatus = OrderStatus.PROCESSED;
-                        logStatus = "COMPLETED";
-                        break;
-                    case "PARTIAL":
-                        targetStatus = OrderStatus.PARTIAL;
-                        logStatus = "PARTIAL";
-                        break;
-                    case "FAILED":
-                        targetStatus = OrderStatus.FAILED;
-                        logStatus = "FAILED";
-                        break;
-                    default:
-                        targetStatus = OrderStatus.FAILED;
-                        logStatus = "FAILED";
-                }
-            } else if (event.getStatus() != null) {
-                // ✅ Fallback for legacy format
-                switch (event.getStatus()) {
-                    case "SUCCESS":
-                        targetStatus = OrderStatus.PROCESSED;
-                        logStatus = "COMPLETED";
-                        break;
-                    default:
-                        targetStatus = OrderStatus.FAILED;
-                        logStatus = "FAILED";
-                }
-            } else {
-                targetStatus = OrderStatus.FAILED;
-                logStatus = "FAILED";
-            }
-
-            // ✅ Update order status
-            try {
-                orderService.updateOrderStatus(orderId, targetStatus.name());
-                log.info("Order {} status updated to {}", orderId, targetStatus.name());
-            } catch (Exception e) {
-                log.warn("Could not update order status to {}: {}", targetStatus.name(), e.getMessage());
-                // Don't fail the consumer, just log the warning
-            }
-
-            // ✅ NEW: Update order items with inventory results
-            try {
-                if (event.getItemResults() != null && !event.getItemResults().isEmpty()) {
-                    orderService.updateOrderItemsWithInventoryResults(orderId, event.getItemResults());
-                    log.info("Updated order items with inventory results for orderId={}", orderId);
-                }
-            } catch (Exception e) {
-                log.warn("Could not update order items with inventory results: {}", e.getMessage());
-            }
-
-            // ✅ Update event log
-            eventLog.setStatus(logStatus);
-            eventLog.setProcessedAt(LocalDateTime.now());
-            eventLogRepository.save(eventLog);
-
-            acknowledgment.acknowledge();
-            
-        } catch (Exception e) {
-            log.error("Kafka processing failed: {}", e.getMessage(), e);
-            markEventAsFailed(event.getEventId(), e.getMessage());
             throw new RuntimeException("Kafka processing failed", e);
         }
     }
@@ -332,7 +271,6 @@ public class KafkaConsumerService {
             EventLog eventLog = new EventLog();
             eventLog.setEventId(event.getEventId());
             eventLog.setEventType(event.getEventType());
-            eventLog.setOrderId(event.getOrderId());
             eventLog.setStatus(status);
             eventLog.setEventPayload(objectMapper.writeValueAsString(event));
             eventLog.setCreatedAt(LocalDateTime.now());
@@ -354,8 +292,7 @@ public class KafkaConsumerService {
 
     private boolean isInvalidOrDuplicate(BaseEvent event, Acknowledgment acknowledgment) {
 
-        if (event.getEventId() == null || event.getEventId().isBlank()
-                || event.getOrderId() == null) {
+        if (event.getEventId() == null || event.getEventId().isBlank()) {
 
             log.error("Invalid event received");
             acknowledgment.acknowledge();

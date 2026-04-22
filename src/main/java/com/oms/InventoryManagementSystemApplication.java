@@ -5,9 +5,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 //@EnableKafka
 @SpringBootApplication
-public class OrderManagementSystemApplication {
+public class InventoryManagementSystemApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(OrderManagementSystemApplication.class, args);
+        SpringApplication.run(InventoryManagementSystemApplication.class, args);
     }
 }

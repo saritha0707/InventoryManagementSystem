@@ -15,8 +15,7 @@ import java.time.LocalDateTime;
 public abstract class BaseEvent {
 
     protected String eventId;
-    protected Long orderId;
-    protected String status;
+    protected String status;// AVAILABLE, INSUFFICIENT_STOCK
 
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     protected LocalDateTime timestamp;

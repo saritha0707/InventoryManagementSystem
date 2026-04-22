@@ -1,19 +1,15 @@
 package com.OrderManagementSystem.service;
 
-import com.oms.dto.*;
 import com.oms.entity.*;
-import com.oms.enums.PaymentMethod;
+import com.oms.enums.InventoryStatus;
 import com.oms.exception.*;
-import com.oms.mapper.OrderMapper;
 import com.oms.repository.*;
 import com.oms.service.InventoryService;
 import com.oms.service.KafkaProducerService;
-import com.oms.service.OrderService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
-import org.springframework.http.ResponseEntity;
 
 import java.math.BigDecimal;
 import java.util.*;
@@ -72,7 +68,7 @@ public class OrderServiceTest {
         requestDTO = new OrderRequestDTO();
         requestDTO.setItems(List.of(itemDTO));
         requestDTO.setCustomerId(1);
-        requestDTO.setPaymentMethod(PaymentMethod.ONLINE);
+        requestDTO.setPaymentMethod(InventoryStatus.ONLINE);
     }
 
     @Test //Success -Customer order

@@ -33,10 +33,6 @@ public class Product {
 
     @OneToMany(mappedBy = "product")
     @JsonManagedReference
-    private List<OrderItem> orderItems;
-
-    @OneToMany(mappedBy = "product")
-    @JsonManagedReference
     private List<Inventory> inventories;
 
 }

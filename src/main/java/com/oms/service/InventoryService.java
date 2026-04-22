@@ -5,6 +5,10 @@ import com.oms.dto.InventoryResponseDTO;
 import com.oms.entity.Inventory;
 import com.oms.entity.Product;
 import com.oms.entity.Warehouse;
+import com.oms.enums.InventoryStatus;
+import com.oms.event.InventoryCheckEvent;
+import com.oms.event.InventoryCheckResponseEvent;
+import com.oms.event.OrderItemEventResponse;
 import com.oms.exception.InsufficientStockException;
 import com.oms.exception.InvalidInventoryException;
 import com.oms.exception.ResourceNotFoundException;
@@ -19,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -36,7 +41,6 @@ public class InventoryService {
         this.warehouseRepository = warehouseRepository;
     }
 
-    // ✅ Common Method (Avoid duplication) - Made public for validation in OrderService
     public Inventory getInventoryOrThrow(int productId, int warehouseId) {
 
         return inventoryRepository
@@ -113,14 +117,40 @@ public class InventoryService {
     }
 
     public boolean isProductAvailable(int productId, int warehouseId, int quantity) {
+        Inventory inventory = inventoryRepository.findByProduct_ProductIdAndWarehouse_WarehouseId(productId, warehouseId).orElseThrow(() -> new ResourceNotFoundException("Inventory not found"));
+        boolean status = false;
+        if (inventory.getQuantity() >= quantity)
+            status = true;
+        return status;
+    }
 
-        List<InventoryResponseDTO> inventories = getProductAvailability(productId);
-
-        return inventories.stream()
-                .anyMatch(inv ->
-                        inv.getWarehouseId() == warehouseId &&
-                                inv.getQuantity() >= quantity
-                );
+    //Check availability and return InventoryCheckResponse Object
+    public InventoryCheckResponseEvent checkAvailability(InventoryCheckEvent event)
+    {
+        InventoryCheckResponseEvent responseEvent = new InventoryCheckResponseEvent();
+        responseEvent.setEventId(event.getEventId());
+        List<OrderItemEventResponse> orderItems = event.getOrderItems().stream()
+                .map(itemDTO -> {
+                    OrderItemEventResponse itemEventResponse = new OrderItemEventResponse();
+                    Inventory inventory = getInventoryOrThrow(itemDTO.getProductId(),itemDTO.getWarehouseId());
+                    itemEventResponse.setProductId(inventory.getProduct().getProductId());
+                    itemEventResponse.setProductName(inventory.getProduct().getProductName());
+                    // Requested quantity
+                    itemEventResponse.setQuantity(itemDTO.getQuantity());
+                    itemEventResponse.setStatus(isProductAvailable(itemDTO.getProductId(),itemDTO.getWarehouseId(),itemDTO.getQuantity())? InventoryStatus.AVAILABLE.name():InventoryStatus.INSUFFICIENT_STOCK.name());
+                    itemEventResponse.setWarehouseId(inventory.getWarehouse().getWarehouseId());
+                    itemEventResponse.setWarehouseName(inventory.getWarehouse().getWarehouseName());
+                    //Quantity available in DB
+                    itemEventResponse.setAvailableCount(inventory.getQuantity());
+                    if(itemEventResponse.getStatus().equalsIgnoreCase(InventoryStatus.INSUFFICIENT_STOCK.name())){
+                        //quantity which is there in DB
+                        itemEventResponse.setAvailableCount(inventory.getQuantity());
+                    }
+                    itemEventResponse.setPrice(inventory.getProduct().getPrice().intValue());
+                  return itemEventResponse;
+                }).collect(Collectors.toList());
+        responseEvent.setOrderItemCheckResponse(orderItems);
+        return responseEvent;
     }
 
     // ✅ Core logic (single source of truth)

@@ -1,6 +1,7 @@
 server:
+  port: 8082
   servlet:
-    context-path: /oms
+    context-path: /inventory
 
 spring:
   mvc:
@@ -10,7 +11,7 @@ spring:
       add-mappings: false
 
   datasource:
-    url: jdbc:mysql://localhost:3306/ordermanagementsystem
+    url: jdbc:mysql://localhost:3306/inventorymanagementsystem
     username: root
     password: mysql070711
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -26,11 +27,9 @@ spring:
 
   kafka:
     bootstrap-servers: localhost:9092
-
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-
     consumer:
       group-id: order-group
       auto-offset-reset: earliest
@@ -40,13 +39,14 @@ spring:
       properties:
         spring.json.trusted.packages: "*"
         spring.json.use.type.headers: true
-
     listener:
       ack-mode: manual
 
 # Custom Kafka Topics Configuration
 kafka:
   topics:
+    inventory-check-request: inventory-check-request
+    inventory-check-response: inventory-check-response
     order-events: order-events
     inventory-events: inventory-events
 
