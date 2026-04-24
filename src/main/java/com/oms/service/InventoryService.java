@@ -8,6 +8,7 @@ import com.oms.entity.Warehouse;
 import com.oms.enums.InventoryStatus;
 import com.oms.event.InventoryCheckEvent;
 import com.oms.event.InventoryCheckResponseEvent;
+import com.oms.event.OrderItemEvent;
 import com.oms.event.OrderItemEventResponse;
 import com.oms.exception.InsufficientStockException;
 import com.oms.exception.InvalidInventoryException;
@@ -22,6 +23,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -42,8 +44,7 @@ public class InventoryService {
     }
 
     public Inventory getInventoryOrThrow(int productId, int warehouseId) {
-
-        return inventoryRepository
+        Inventory inventory = inventoryRepository
                 .findByProduct_ProductIdAndWarehouse_WarehouseId(productId, warehouseId)
                 .orElseThrow(() -> {
                     log.error("Inventory not found for productId={} and warehouseId={}",
@@ -52,6 +53,7 @@ public class InventoryService {
                             "Inventory not found for productId=" + productId +
                                     " and warehouseId=" + warehouseId);
                 });
+        return inventory;
     }
 
     // ✅ 1. Add or Update Inventory
@@ -129,26 +131,61 @@ public class InventoryService {
     {
         InventoryCheckResponseEvent responseEvent = new InventoryCheckResponseEvent();
         responseEvent.setEventId(event.getEventId());
-        List<OrderItemEventResponse> orderItems = event.getOrderItems().stream()
-                .map(itemDTO -> {
-                    OrderItemEventResponse itemEventResponse = new OrderItemEventResponse();
-                    Inventory inventory = getInventoryOrThrow(itemDTO.getProductId(),itemDTO.getWarehouseId());
-                    itemEventResponse.setProductId(inventory.getProduct().getProductId());
-                    itemEventResponse.setProductName(inventory.getProduct().getProductName());
-                    // Requested quantity
-                    itemEventResponse.setQuantity(itemDTO.getQuantity());
-                    itemEventResponse.setStatus(isProductAvailable(itemDTO.getProductId(),itemDTO.getWarehouseId(),itemDTO.getQuantity())? InventoryStatus.AVAILABLE.name():InventoryStatus.INSUFFICIENT_STOCK.name());
-                    itemEventResponse.setWarehouseId(inventory.getWarehouse().getWarehouseId());
-                    itemEventResponse.setWarehouseName(inventory.getWarehouse().getWarehouseName());
-                    //Quantity available in DB
+        // Requested quantity
+        //Quantity available in DB
+        //quantity which is there in DB
+        List<OrderItemEventResponse> orderItems = new ArrayList<>();
+        for (OrderItemEvent orderItemEvent : event.getOrderItems()) {
+            OrderItemEventResponse itemEventResponse = new OrderItemEventResponse();
+            try {
+                itemEventResponse.setProductId(orderItemEvent.getProductId());
+                itemEventResponse.setWarehouseId(orderItemEvent.getWarehouseId());
+                Product product =
+                        productRepository
+                        .findById(orderItemEvent.getProductId())
+                        .orElseThrow(() ->{
+                            String message = InventoryStatus.INVALID_PRODUCT.name();
+                            log.error(message);
+                            return new InvalidInventoryException(message);
+                        });
+                Warehouse warehouse = warehouseRepository
+                        .findById(orderItemEvent.getWarehouseId())
+                        .orElseThrow(() -> {
+                            String message = InventoryStatus.INVALID_WAREHOUSE.name();
+                            log.error(message);
+                            return new InvalidInventoryException(message);
+                        });
+                Inventory inventory = getInventoryOrThrow(orderItemEvent.getProductId(), orderItemEvent.getWarehouseId());
+                //itemEventResponse.setProductId(inventory.getProduct().getProductId());
+                itemEventResponse.setProductName(inventory.getProduct().getProductName());
+                // Requested quantity
+                itemEventResponse.setQuantity(orderItemEvent.getQuantity());
+                itemEventResponse.setStatus(isProductAvailable(orderItemEvent.getProductId(), orderItemEvent.getWarehouseId(), orderItemEvent.getQuantity()) ? InventoryStatus.AVAILABLE.name() : InventoryStatus.INSUFFICIENT_STOCK.name());
+                //itemEventResponse.setWarehouseId(inventory.getWarehouse().getWarehouseId());
+                itemEventResponse.setWarehouseName(inventory.getWarehouse().getWarehouseName());
+                //Quantity available in DB
+                itemEventResponse.setAvailableCount(inventory.getQuantity());
+                if (itemEventResponse.getStatus().equalsIgnoreCase(InventoryStatus.INSUFFICIENT_STOCK.name())) {
+                    //quantity which is there in DB
                     itemEventResponse.setAvailableCount(inventory.getQuantity());
-                    if(itemEventResponse.getStatus().equalsIgnoreCase(InventoryStatus.INSUFFICIENT_STOCK.name())){
-                        //quantity which is there in DB
-                        itemEventResponse.setAvailableCount(inventory.getQuantity());
-                    }
-                    itemEventResponse.setPrice(inventory.getProduct().getPrice().intValue());
-                  return itemEventResponse;
-                }).collect(Collectors.toList());
+                }
+                itemEventResponse.setPrice(inventory.getProduct().getPrice().intValue());
+            } catch (InvalidInventoryException ex) {
+                String message = ex.getMessage();
+                switch (message) {
+                    case "INVALID_PRODUCT":
+                        itemEventResponse.setStatus(InventoryStatus.INVALID_PRODUCT.name());
+                        break;
+                    case "INVALID_WAREHOUSE":
+                        itemEventResponse.setStatus(InventoryStatus.INVALID_WAREHOUSE.name());
+                        break;
+                    default:
+                        itemEventResponse.setStatus("ERROR");
+                }
+            }
+            OrderItemEventResponse apply = itemEventResponse;
+            orderItems.add(apply);
+        }
         responseEvent.setOrderItemCheckResponse(orderItems);
         return responseEvent;
     }
